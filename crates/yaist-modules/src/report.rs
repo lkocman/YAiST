@@ -43,19 +43,14 @@ pub fn register(reg: &mut Registry) {
             environment: environment(&ctx).await,
         };
         let form = report.url(&ctx.distro);
-        // One tab: the report. Bugzilla suggests similar reports itself as
-        // the summary is typed; GitHub doesn't, so its search is offered as
-        // a link.
+        // Only the report: Bugzilla suggests similar reports itself as the
+        // summary is typed, and a second tab would hide the first.
         ctx.open_in_browser(form.as_str()).await?;
-        let text = match report.target {
-            Target::Yaist => format!(
-                "Opened a new YAiST issue on GitHub, prefilled. Complete it there and submit it; if it is already reported, add to that issue instead.\nExisting issues: {}\nReport: {form}",
-                report.search_url()
-            ),
-            Target::OpenSuse => format!(
-                "Opened a new openSUSE Bugzilla report, prefilled. Complete it there and submit it; Bugzilla suggests similar reports as you edit the summary.\nReport: {form}"
-            ),
+        let place = match report.target {
+            Target::Yaist => "a new YAiST issue on GitHub",
+            Target::OpenSuse => "a new openSUSE Bugzilla report",
         };
+        let text = format!("Opened {place} in your browser, prefilled. Complete it there and submit it.\nReport: {form}");
         Ok(Output::Text(text))
     });
     reg.shell(REPORT.id, |a, d| {
@@ -136,11 +131,6 @@ impl Report {
             }
         }
     }
-
-    /// Existing YAiST issues with the title's significant words.
-    fn search_url(&self) -> Url {
-        link(ISSUES, &[("q", &format!("is:issue {}", search_terms(&self.title)))])
-    }
 }
 
 /// `base?k=v&…` encoded the way openQA's prefilled Bugzilla links are:
@@ -155,20 +145,6 @@ fn link(base: &str, params: &[(&str, &str)]) -> Url {
     };
     let query = params.iter().map(|(k, v)| format!("{}={}", enc(k), enc(v))).collect::<Vec<_>>().join("&");
     Url::parse(&format!("{base}?{query}")).expect("static URL")
-}
-
-/// Search words from a title: GitHub reads "word:" as a qualifier, so
-/// punctuation goes, and so do words every failure
-/// has ("failed", "error", "exit status", paths). At most six, the first.
-fn search_terms(title: &str) -> String {
-    const GENERIC: &[&str] = &["fails", "failed", "error", "exit", "status", "usr", "bin", "sbin", "the", "and", "with", "for", "yaist"];
-    title
-        .split(|c: char| !(c.is_alphanumeric() || "-_.+".contains(c)))
-        .map(|w| w.trim_matches(|c: char| ".-_+".contains(c)))
-        .filter(|w| w.len() > 2 && !w.chars().all(|c| c.is_ascii_digit()) && !GENERIC.contains(&w.to_lowercase().as_str()))
-        .take(6)
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 /// Bugzilla product, version and component for this system, as the wiki
@@ -295,13 +271,12 @@ mod tests {
     }
 
     #[test]
-    fn github_url_and_search() {
+    fn github_url() {
         let r = report(Target::Yaist, "YAiST could not read zypper's output");
         let d = distro("opensuse-leap", "16.0", "");
         let url = r.url(&d);
         assert!(url.as_str().starts_with("https://github.com/lkocman/YAiST/issues/new?"));
         assert_eq!(param(&url, "title").as_deref(), Some("Update fails: %post of foo"));
-        assert_eq!(param(&r.search_url(), "q").as_deref(), Some("is:issue Update post foo"));
     }
 
     #[test]
@@ -310,13 +285,6 @@ mod tests {
         assert!(url.as_str().contains("product=openSUSE%20Distribution"), "{url}");
         assert!(url.as_str().contains("short_desc=%5BYAiST%5D%20Update%20fails%3A%20%25post%20of%20foo"), "{url}");
         assert!(!url.as_str().contains('+'), "{url}");
-        assert_eq!(report(Target::Yaist, "x").search_url().query(), Some("q=is%3Aissue%20Update%20post%20foo"));
-    }
-
-    #[test]
-    fn search_words_have_no_field_names() {
-        let title = "Install Flatpak app fails: /usr/bin/flatpak failed (exit status: 1): error: Nothing matches org.example.Doe";
-        assert_eq!(search_terms(title), "Install Flatpak app flatpak Nothing matches");
     }
 
     #[test]
