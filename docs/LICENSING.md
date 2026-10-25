@@ -44,8 +44,8 @@ time of writing (x86_64 Linux target, normal dependencies only):
 
 | Binary | Crates linked | Suggested `License:` |
 |---|---|---|
-| `yaist` (TUI and CLI) | 164 | `Apache-2.0 AND BSD-3-Clause AND ISC AND MIT AND Unicode-3.0 AND Zlib` |
-| `yaist-gui` | 287 | `Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND ISC AND MIT AND OFL-1.1 AND Unicode-3.0 AND Zlib` |
+| `yaist` (TUI and CLI) | 161 | `Apache-2.0 AND BSD-3-Clause AND ISC AND MIT AND Unicode-3.0 AND Zlib` |
+| `yaist-gui` | 285 | `Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND ISC AND MIT AND OFL-1.1 AND Unicode-3.0 AND Zlib` |
 
 - **No copyleft is forced.** Two crates offer a copyleft licence as one `OR`
   choice: `r-efi` (`MIT OR Apache-2.0 OR LGPL-2.1-or-later`) and `self_cell`

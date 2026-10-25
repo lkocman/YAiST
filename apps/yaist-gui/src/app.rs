@@ -84,6 +84,8 @@ struct Shot {
     after: Duration,
     started: std::time::Instant,
     requested: bool,
+    /// Filled by egui's screenshot callback.
+    image: std::sync::Arc<std::sync::Mutex<Option<std::sync::Arc<egui::ColorImage>>>>,
 }
 
 impl App {
@@ -99,6 +101,7 @@ impl App {
             after: Duration::from_secs_f32(std::env::var("YAIST_SCREENSHOT_DELAY").ok().and_then(|d| d.parse().ok()).unwrap_or(4.0)),
             started: std::time::Instant::now(),
             requested: false,
+            image: Default::default(),
         });
         let confirm_demo = std::env::var("YAIST_DEMO_CONFIRM").is_ok_and(|c| c == "1");
         let demo_click = std::env::var("YAIST_DEMO_CLICK").ok().and_then(|c| {
@@ -134,15 +137,15 @@ impl App {
         let Some(shot) = &mut self.shot else { return };
         ctx.request_repaint_after(Duration::from_millis(200));
         if !shot.requested && shot.started.elapsed() >= shot.after {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
+            let (slot, repaint) = (shot.image.clone(), ctx.clone());
+            let callback = egui::ScreenshotCallback::new(move |img| {
+                *slot.lock().unwrap_or_else(|e| e.into_inner()) = Some(img);
+                repaint.request_repaint();
+            });
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(callback));
             shot.requested = true;
         }
-        let image = ctx.input(|i| {
-            i.events.iter().find_map(|e| match e {
-                egui::Event::Screenshot { image, .. } => Some(image.clone()),
-                _ => None,
-            })
-        });
+        let image = shot.image.lock().unwrap_or_else(|e| e.into_inner()).take();
         if let Some(img) = image {
             let mut ppm = format!("P6\n{} {}\n255\n", img.size[0], img.size[1]).into_bytes();
             for p in &img.pixels {
@@ -577,7 +580,7 @@ impl App {
         let Some(d) = &self.detail else { return };
         let t = Tokens::get(ctx);
         let row = d.table.rows[0].clone();
-        let modal = egui::Modal::new(egui::Id::new("detail"))
+        let modal = egui::Modal::new(egui::Id::unique("detail"))
             .frame(Frame::new().fill(t.bg).stroke(Stroke::new(1.0, t.line_strong)).shadow(theme::shadow(&t)).inner_margin(theme::PAD as i8));
         let mut chosen = None;
         let mut close = false;
@@ -1366,7 +1369,7 @@ impl App {
             let default = q.choices.iter().position(|c| c.default).unwrap_or(q.choices.len().saturating_sub(1));
             self.choice = (asked.id, default);
         }
-        let modal = egui::Modal::new(egui::Id::new("question").with(asked.id))
+        let modal = egui::Modal::new(egui::Id::unique("question").with(asked.id))
             .frame(Frame::new().fill(t.bg).stroke(Stroke::new(1.0, t.line_strong)).shadow(theme::shadow(&t)).inner_margin(theme::PAD as i8));
         modal.show(ctx, |ui| {
             ui.set_width(560.0);
@@ -1397,7 +1400,7 @@ impl App {
     fn form_dialog(&mut self, ctx: &egui::Context) {
         let Some(form) = &mut self.form else { return };
         let t = Tokens::get(ctx);
-        let modal = egui::Modal::new(egui::Id::new("form").with(form.spec.id))
+        let modal = egui::Modal::new(egui::Id::unique("form").with(form.spec.id))
             .frame(Frame::new().fill(t.bg).stroke(Stroke::new(1.0, t.line_strong)).shadow(theme::shadow(&t)).inner_margin(theme::PAD as i8));
         let mut submit = false;
         let mut close = false;

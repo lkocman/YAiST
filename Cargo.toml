@@ -18,13 +18,13 @@ libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "io-util"] }
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+zbus = { version = "6", default-features = false, features = ["tokio", "proxy"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
-roxmltree = "0.20"
-ratatui = "0.29"
-eframe = { version = "0.36", default-features = false, features = ["glow", "wayland", "x11", "accesskit", "links"] }
-egui = { version = "0.36", default-features = false }
-egui_extras = { version = "0.36", default-features = false }
+roxmltree = "0.21"
+ratatui = "0.30"
+eframe = { version = "0.37", default-features = false, features = ["glow", "wayland", "x11", "accesskit", "links"] }
+egui = { version = "0.37", default-features = false }
+egui_extras = { version = "0.37", default-features = false }
 
 [profile.dev.package."*"]
 opt-level = 2

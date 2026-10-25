@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use yaist_core::shell_quote as sq;
 use yaist_core::{validate, ActionSpec, Context, ModuleSpec, Output, Param, Registry, Risk, Table};
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 const FIREWALLD: &str = "org.fedoraproject.FirewallD1";
 const PATH: &str = "/org/fedoraproject/FirewallD1";

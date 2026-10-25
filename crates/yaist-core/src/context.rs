@@ -11,7 +11,7 @@ use std::process::Stdio;
 use anyhow::{anyhow, bail, Context as _, Result};
 use serde::Serialize;
 use tokio::sync::OnceCell;
-use zbus::zvariant::{DynamicDeserialize, DynamicType, OwnedValue};
+use zbus::zvariant::{DynamicDeserialize, DynamicType};
 
 tokio::task_local! {
     /// Commands and D-Bus calls made by the action running in this task.
@@ -163,9 +163,9 @@ impl Context {
     async fn proxy(&self, dest: &'static str, path: &str, iface: &'static str) -> Result<zbus::Proxy<'static>> {
         let conn = self.system_bus().await?;
         Ok(zbus::proxy::Builder::<zbus::Proxy<'static>>::new(conn)
-            .destination(dest)?
-            .path(path.to_owned())?
-            .interface(iface)?
+            .destination(dest)
+            .path(path.to_owned())
+            .interface(iface)
             .cache_properties(zbus::proxy::CacheProperties::No)
             .build()
             .await?)
@@ -191,15 +191,14 @@ impl Context {
             // Interactive calls are the changing ones; reads stay out of the log.
             record(format!("D-Bus {iface}.{method} {}", serde_json::to_string(body).unwrap_or_default()));
         }
-        let flags = if interactive { zbus::proxy::MethodFlags::AllowInteractiveAuth.into() } else { Default::default() };
+        let flags = if interactive { zbus::proxy::MethodFlags::ALLOW_INTERACTIVE_AUTH } else { zbus::proxy::MethodFlags::empty() };
         let reply = proxy.call_with_flags::<_, B, R>(method, flags, body).await.map_err(dbus_error)?;
         reply.ok_or_else(|| anyhow!("{method}: no reply"))
     }
 
     pub async fn property<T>(&self, dest: &'static str, path: &str, iface: &'static str, name: &'static str) -> Result<T>
     where
-        T: TryFrom<OwnedValue>,
-        T::Error: Into<zbus::Error>,
+        T: serde::de::DeserializeOwned + zbus::zvariant::Type,
     {
         let proxy = self.proxy(dest, path, iface).await?;
         proxy.get_property::<T>(name).await.map_err(dbus_error)

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use yaist_core::shell_quote as sq;
 use yaist_core::{last_lines, validate, ActionSpec, Context, ModuleSpec, Output, Param, Registry, Risk, Table};
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 const SYSTEMD: &str = "org.freedesktop.systemd1";
 const SYSTEMD_PATH: &str = "/org/freedesktop/systemd1";

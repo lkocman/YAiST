@@ -169,7 +169,7 @@ const RESIZE_EDGE: f32 = 5.0;
 pub fn title_bar_drag(ui: &mut Ui) {
     let r = ui.max_rect();
     let rect = Rect::from_min_max(r.min + vec2(RESIZE_EDGE, RESIZE_EDGE), r.max - vec2(RESIZE_EDGE, 0.0));
-    let resp = ui.interact(rect, ui.id().with("title-bar"), Sense::click_and_drag());
+    let resp = ui.interact(rect, ui.scope_id().with("title-bar"), Sense::click_and_drag());
     if resp.drag_started_by(egui::PointerButton::Primary) {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
@@ -187,7 +187,7 @@ pub fn window_buttons(ui: &mut Ui, height: f32) {
         let t = Tokens::get(&ctx);
         let (rect, _) = ui.allocate_exact_size(vec2(46.0, height), Sense::hover());
         let hit = Rect::from_min_max(rect.min + vec2(0.0, RESIZE_EDGE), rect.max);
-        let resp = ui.interact(hit, ui.id().with(("window-button", i)), Sense::click());
+        let resp = ui.interact(hit, ui.scope_id().with(("window-button", i)), Sense::click());
         let (fill, ink) = match (i, resp.hovered()) {
             (0, true) => (t.bad, t.invert_fg),
             (_, true) => (t.line, t.ink_strong),
@@ -231,7 +231,7 @@ pub fn window_edges(ctx: &egui::Context) {
     }
     let t = Tokens::get(ctx);
     let r = ctx.content_rect();
-    ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("window-border"))).rect_stroke(
+    ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("window-border"))).rect_stroke(
         r,
         CornerRadius::ZERO,
         t.hairline(),
