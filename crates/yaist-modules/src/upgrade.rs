@@ -316,6 +316,23 @@ async fn leap_releases(key: &str, current: &str) -> Result<Vec<(String, String)>
     Ok(out)
 }
 
+/// This Leap release's phase on get.opensuse.org while it isn't out yet
+/// (Alpha, Beta, RC); `None` once it is stable, and when unknown or offline.
+/// Pre-releases are updated with dup, as their packages may go backwards.
+pub(crate) async fn prerelease_phase(d: &Distro) -> Option<String> {
+    let (key, _, _) = leap_line(d)?;
+    // As long as leap_releases waits: with broken IPv6 the answer can take
+    // seconds.
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build().ok()?;
+    let v: Value = client.get(RELEASES_API).send().await.ok()?.json().await.ok()?;
+    phase_of(&v, key, &d.version)
+}
+
+fn phase_of(releases: &Value, key: &str, version: &str) -> Option<String> {
+    let state = releases[key].as_array()?.iter().find(|r| r["version"].as_str() == Some(version))?["state"].as_str()?;
+    matches!(state.to_ascii_lowercase().as_str(), "alpha" | "beta" | "rc").then(|| state.to_owned())
+}
+
 fn x86_64_v2() -> bool {
     let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default();
     let flags: Vec<&str> = cpuinfo.lines().find(|l| l.starts_with("flags")).map(|l| l.split_whitespace().collect()).unwrap_or_default();
@@ -542,7 +559,21 @@ async fn to_sle(ctx: &Context, email: &str, regcode: &str, keep: &[String]) -> R
 
 #[cfg(test)]
 mod tests {
-    use super::{repo_fate, Fate};
+    use super::{phase_of, repo_fate, Fate};
+    use serde_json::Value;
+
+    #[test]
+    fn prerelease_phase_from_the_release_list() {
+        let v: Value = serde_json::json!({ "Leap": [
+            { "version": "16.1", "state": "RC" },
+            { "version": "16.0", "state": "Stable" },
+            { "version": "15.5", "state": "EOL" },
+        ]});
+        assert_eq!(phase_of(&v, "Leap", "16.1").as_deref(), Some("RC"));
+        assert_eq!(phase_of(&v, "Leap", "16.0"), None);
+        assert_eq!(phase_of(&v, "Leap", "16.2"), None);
+        assert_eq!(phase_of(&v, "LeapMicro", "6.2"), None);
+    }
 
     #[test]
     fn repositories_in_an_upgrade() {

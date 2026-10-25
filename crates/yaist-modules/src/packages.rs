@@ -61,7 +61,7 @@ const REMOVE: ActionSpec = ActionSpec {
 const UPDATE_SYSTEM: ActionSpec = ActionSpec {
     id: "packages.update_system",
     title: "Update system",
-    description: "Install all available updates: update the whole system the way this distribution expects (Leap: zypper update, Tumbleweed/Slowroll: zypper dup, immutable: transactional-update into a new snapshot).",
+    description: "Install all available updates: update the whole system the way this distribution expects (Leap: zypper update, or zypper dup while the release is in Alpha/Beta/RC; Tumbleweed/Slowroll: zypper dup; immutable: transactional-update into a new snapshot).",
     risk: Risk::Dangerous,
     params: &[],
 };
@@ -183,17 +183,20 @@ pub fn register(reg: &mut Registry) {
 
     reg.action(UPDATE_SYSTEM, |ctx, _| async move {
         let d = &ctx.distro;
-        let verb = if d.rolling { "dup" } else { "update" };
+        let phase = if d.rolling { None } else { crate::upgrade::prerelease_phase(d).await };
+        let dup = d.rolling || phase.is_some();
+        let verb = if dup { "dup" } else { "update" };
         let disabled = crate::repos::disable_broken_before_update(&ctx).await?;
         let note = if disabled.is_empty() { String::new() } else { format!(" Disabled broken repositories: {}.", disabled.join(", ")) };
         let out = if d.transactional {
-            zypper::transactional(&ctx, &[if d.rolling { "dup" } else { "up" }]).await
+            zypper::transactional(&ctx, &[if dup { "dup" } else { "up" }]).await
         } else {
             zypper::interactive(&ctx, &[verb]).await
         };
         // The repositories stay disabled whatever happens to the update.
         let out = out.map_err(|e| anyhow::anyhow!("{e:#}.{note}"))?;
-        Ok(Output::Done(format!("System updated ({verb}): {out}.{note}")))
+        let why = phase.map(|p| format!(", {} is in {p}", d.pretty)).unwrap_or_default();
+        Ok(Output::Done(format!("System updated ({verb}{why}): {out}.{note}")))
     });
 
     reg.action(REFRESH, |ctx, _| async move {
