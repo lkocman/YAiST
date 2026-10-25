@@ -177,7 +177,10 @@ pub async fn interactive(ctx: &Context, args: &[&str]) -> Result<String> {
 #[derive(Debug, PartialEq)]
 enum Item {
     Info(String),
+    Warning(String),
     Error(String),
+    /// A step or download zypper marked as failed (`done="0"`).
+    Failed(String),
     Summary(Summary),
     Prompt(Prompt),
 }
@@ -271,8 +274,16 @@ fn items(chunk: &str) -> Result<Vec<Item>> {
         match n.tag_name().name() {
             "message" => {
                 let text = n.text().unwrap_or("").to_owned();
-                out.push(if n.attribute("type") == Some("error") { Item::Error(text) } else { Item::Info(text) });
+                out.push(match n.attribute("type") {
+                    Some("error") => Item::Error(text),
+                    Some("warning") => Item::Warning(text),
+                    _ => Item::Info(text),
+                });
             }
+            // done="1" is success, done="0" failure (the schema's comment
+            // has it backwards).
+            "progress" if n.attribute("done") == Some("0") => out.push(Item::Failed(n.attribute("name").unwrap_or("").to_owned())),
+            "download" if n.attribute("done") == Some("0") => out.push(Item::Failed(format!("downloading {}", n.attribute("url").unwrap_or("")))),
             "prompt" => out.push(Item::Prompt(Prompt {
                 id: n.attribute("id").and_then(|i| i.parse().ok()).unwrap_or(u32::MAX),
                 description: child_text(n, "description"),
@@ -385,7 +396,11 @@ struct Session {
     /// The last description of each prompt, for repeated prompts.
     descriptions: HashMap<u32, String>,
     summary: Option<Summary>,
-    errors: Vec<String>,
+    /// Errors, warnings and failed steps in order: why a transaction failed.
+    trouble: Vec<String>,
+    /// How much of `trouble` came before the last prompt; the rest explains
+    /// the next one ("File … not found on medium", then "Abort, retry, ignore?").
+    trouble_asked: usize,
     /// The user picked a solution, so the result differs from the request.
     resolved: bool,
     /// The conflict that was cancelled, if one was.
@@ -403,14 +418,21 @@ impl Session {
                 if let Some(n) = text.strip_suffix(" Problems:").and_then(|n| n.trim().parse().ok()) {
                     self.problems = n;
                 }
-                // A warning: "Skipping repository 'x' because of the above error."
+                None
+            }
+            Item::Warning(text) => {
                 if let Some(repo) = text.strip_prefix("Skipping repository '").and_then(|r| r.split_once('\'')).map(|(r, _)| r) {
                     self.skipped_repos.push(repo.to_owned());
                 }
+                self.trouble.push(text);
                 None
             }
             Item::Error(text) => {
-                self.errors.push(text);
+                self.trouble.push(text);
+                None
+            }
+            Item::Failed(what) => {
+                self.trouble.push(format!("failed: {what}"));
                 None
             }
             Item::Summary(s) => {
@@ -431,6 +453,7 @@ impl Session {
             // Nothing worth asking: accept what zypper proposes.
             return p.options.iter().find(|o| o.default).map(|o| o.value.clone()).unwrap_or_default();
         };
+        self.trouble_asked = self.trouble.len();
         let default = q.default_choice().map(|c| c.value.clone()).unwrap_or_default();
         // Only ever send what zypper offered; anything else makes it ask again.
         let value = ask::ask(q.clone()).await.filter(|v| q.choices.iter().any(|c| &c.value == v)).unwrap_or(default);
@@ -445,8 +468,13 @@ impl Session {
 
     /// The question for a prompt, or `None` to take zypper's default.
     fn question(&self, p: &Prompt) -> Option<Question> {
-        // Display toggles and the pager are for terminals.
-        let offered = || p.options.iter().filter(|o| !o.label.starts_with("Toggle") && !o.label.starts_with("View") && o.value != "?");
+        // Display toggles and the pager are for terminals, and a new base URI
+        // would have to be typed.
+        let offered = || {
+            p.options.iter().filter(|o| {
+                !o.label.starts_with("Toggle") && !o.label.starts_with("View") && !o.label.starts_with("Change current base URI") && o.value != "?"
+            })
+        };
         match p.id {
             PROMPT_CONTINUE => {
                 let summary = self.summary.as_ref();
@@ -491,7 +519,9 @@ impl Session {
                 if choices.is_empty() {
                     return None;
                 }
-                let text = [p.description.trim(), p.text.trim()].iter().filter(|t| !t.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
+                let recent = self.trouble[self.trouble_asked..].join("\n");
+                let text =
+                    [recent.trim(), p.description.trim(), p.text.trim()].iter().filter(|t| !t.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
                 Some(Question { title: prompt_title(id).into(), text, choices })
             }
         }
@@ -505,7 +535,9 @@ impl Session {
             bail!("unresolved package conflict, no packages were changed: {problem}");
         }
         if !CHANGED.contains(&code) {
-            let detail = if self.errors.is_empty() { format!("zypper exited with code {code}") } else { last_lines(&self.errors.join("\n"), 6) };
+            // zypper's closing "Installation has completed with error." says
+            // nothing; what failed comes before it.
+            let detail = if self.trouble.is_empty() { format!("zypper exited with code {code}") } else { last_lines(&self.trouble.join("\n"), 10) };
             bail!("{detail}");
         }
         let mut out = self.summary.map(|s| s.headline()).unwrap_or_else(|| "nothing to do".into());
@@ -730,6 +762,48 @@ calls sendmail...</description></solvable>
         let out = s.finish(107).unwrap();
         assert!(out.contains("could not be refreshed: home_lkocman_branches_graphics"), "{out}");
         assert!(out.ends_with("a package script failed, see /var/log/zypp/history"), "{out}");
+    }
+
+    /// Recorded from `zypper --xmlout install hello` with the package file
+    /// gone from a local repository.
+    const MISSING_FILE: &str =
+        "<message type=\"error\">File &apos;./hello-2.12.3-1.4.x86_64.rpm&apos; not found on medium &apos;dir:/tmp/repo&apos;</message>
+<prompt id=\"8\">
+<text>Abort, retry, ignore?</text>
+<option default=\"1\" value=\"a\" desc=\"Skip retrieval of the file and abort current operation.\"/>
+<option value=\"r\" desc=\"Try to retrieve the file again.\"/>
+<option value=\"i\" desc=\"Skip retrieval of the file and try to continue with the operation without the file.\"/>
+<option value=\"u\" desc=\"Change current base URI and try retrieving the file again.\"/>
+</prompt>
+";
+
+    #[test]
+    fn media_problems_say_what_failed() {
+        let mut s = Session::default();
+        let mut items = items(MISSING_FILE).unwrap().into_iter();
+        let Some(Item::Error(e)) = items.next() else { panic!() };
+        s.trouble.push(e);
+        let Some(Item::Prompt(p)) = items.next() else { panic!() };
+        let q = s.question(&p).unwrap();
+        assert_eq!(q.title, "Media problem");
+        assert!(q.text.starts_with("File './hello-2.12.3-1.4.x86_64.rpm' not found on medium"), "{}", q.text);
+        assert_eq!(q.choices.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["a", "r", "i"]);
+    }
+
+    #[tokio::test]
+    async fn a_failed_commit_explains_itself() {
+        let mut s = Session::default();
+        let stream = "<download url=\"https://example.org/x86_64/foo-1.rpm\" rate=\"0\" done=\"0\"/>
+<progress id=\"\" name=\"(1/2) Installing: bar-2\" done=\"0\"/>
+<message type=\"warning\">bar-2: %post scriptlet failed</message>
+<message type=\"error\">Installation has completed with error.</message>
+";
+        feed(&mut s, stream).await;
+        let err = s.finish(8).unwrap_err().to_string();
+        assert_eq!(
+            err,
+            "failed: downloading https://example.org/x86_64/foo-1.rpm\nfailed: (1/2) Installing: bar-2\nbar-2: %post scriptlet failed\nInstallation has completed with error."
+        );
     }
 
     #[tokio::test]
