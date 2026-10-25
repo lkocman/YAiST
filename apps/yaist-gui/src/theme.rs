@@ -125,7 +125,9 @@ fn visuals(t: &Tokens) -> Visuals {
 pub fn apply(ctx: &egui::Context) {
     ctx.set_visuals_of(egui::Theme::Dark, visuals(&Tokens::from(palette::Tokens::dark())));
     ctx.set_visuals_of(egui::Theme::Light, visuals(&Tokens::from(palette::Tokens::light())));
-    ctx.set_theme(egui::ThemePreference::Dark);
+    // YAIST_THEME=light starts in the light scheme (screenshots).
+    let light = std::env::var("YAIST_THEME").is_ok_and(|t| t == "light");
+    ctx.set_theme(if light { egui::ThemePreference::Light } else { egui::ThemePreference::Dark });
     ctx.all_styles_mut(|style| {
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
         style.spacing.icon_spacing = 10.0;

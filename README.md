@@ -19,6 +19,14 @@ three run the same actions, and every change waits for your confirmation.
 Status: **prototype**. See [PLAN.md](PLAN.md) for the design and
 [docs/LICENSING.md](docs/LICENSING.md) for licensing.
 
+![YAiST welcome screen on openSUSE Tumbleweed: modules on the left, updates and starting points in the middle, the AI conversation on the right](docs/screenshots/welcome.png)
+
+When a change runs into trouble, YAiST asks instead of failing. Here zypper
+found three conflicts in one install; each comes up in turn with zypper's own
+solutions, and a summary follows before anything is changed:
+
+![A package conflict dialog: "Package conflict 1 of 3", busybox-which conflicts with which, with zypper's solutions to pick from](docs/screenshots/package-conflict.png)
+
 ## Modules
 
 YAiST opens on a **welcome screen** that takes over from openSUSE-welcome:

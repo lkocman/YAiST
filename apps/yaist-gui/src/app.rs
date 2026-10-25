@@ -52,13 +52,16 @@ pub struct App {
     form: Option<Form>,
     acts: Vec<Act>,
     shot: Option<Shot>,
+    /// Confirm the demo request's plan once it is up (`YAIST_DEMO_CONFIRM`).
+    confirm_demo: bool,
     /// The choice picked in the open question: (question id, choice index).
     choice: (u64, usize),
 }
 
 /// `YAIST_SCREENSHOT=file.ppm`: save one frame after `YAIST_SCREENSHOT_DELAY`
 /// seconds and quit. `YAIST_MODULE` (number) and `YAIST_DEMO` (a request)
-/// set the scene. For docs and visual checks.
+/// set the scene; `YAIST_DEMO_CONFIRM=1` confirms the plan the request
+/// raises, to show what follows. For docs and visual checks.
 struct Shot {
     path: String,
     after: Duration,
@@ -80,10 +83,18 @@ impl App {
             started: std::time::Instant::now(),
             requested: false,
         });
-        Self { session, input: String::new(), form: None, acts: Vec::new(), shot, choice: (0, 0) }
+        let confirm_demo = std::env::var("YAIST_DEMO_CONFIRM").is_ok_and(|c| c == "1");
+        Self { session, input: String::new(), form: None, acts: Vec::new(), shot, confirm_demo, choice: (0, 0) }
     }
 
     fn screenshot(&mut self, ctx: &egui::Context) {
+        if self.confirm_demo {
+            let pending = self.session.state().pending_plan().map(|p| p.id);
+            if let Some(id) = pending {
+                self.session.send(Cmd::Confirm(id));
+                self.confirm_demo = false;
+            }
+        }
         let Some(shot) = &mut self.shot else { return };
         ctx.request_repaint_after(Duration::from_millis(200));
         if !shot.requested && shot.started.elapsed() >= shot.after {
