@@ -87,18 +87,18 @@ impl Support {
 }
 
 /// How this system takes changes, shown under the welcome title:
-/// (label, explanation).
+/// (label, explanation for its tooltip).
 pub fn mode(d: &Distro) -> (&'static str, &'static str) {
     if d.transactional {
         if d.rolling {
-            ("Immutable", "Read-only rolling release: updates and software go into a new snapshot, used after a reboot.")
+            ("Immutable mode", "Read-only rolling release: updates and software go into a new snapshot, used after a reboot.")
         } else {
-            ("Immutable", "Read-only system: updates and software go into a new snapshot, used after a reboot.")
+            ("Immutable mode", "Read-only system: updates and software go into a new snapshot, used after a reboot.")
         }
     } else if d.rolling {
-        ("Standard", "Rolling release: always the latest software, updated with zypper dup.")
+        ("Standard mode", "Rolling release: always the latest software, updated with zypper dup.")
     } else {
-        ("Standard", "Regular release: updates and software install directly with zypper.")
+        ("Standard mode", "Regular release: updates and software install directly with zypper.")
     }
 }
 

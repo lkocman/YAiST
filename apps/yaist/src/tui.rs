@@ -771,7 +771,7 @@ impl App {
                     spans.push(Span::styled(rest.clone(), self.style(t.ink_strong).add_modifier(Modifier::BOLD)));
                 }
                 4 => {
-                    let (mode, explanation) = welcome::mode(d);
+                    let (mode, _) = welcome::mode(d);
                     spans.push(Span::raw("  "));
                     spans.push(self.tag(&mode.to_uppercase(), t.invert_bg));
                     if let Some(label) = support.label() {
@@ -779,7 +779,6 @@ impl App {
                         spans.push(Span::raw(" "));
                         spans.push(self.tag(&label.to_uppercase(), fill));
                     }
-                    spans.push(Span::styled(format!(" {explanation}"), self.style(t.ink)));
                 }
                 5 => {
                     let colour = match support {
@@ -789,7 +788,6 @@ impl App {
                     };
                     spans.push(Span::styled(format!("  {}", support.sentence()), self.style(colour)));
                 }
-                6 => spans.push(Span::styled("  Ask in plain language below, or start here.", self.style(t.muted))),
                 _ => {}
             }
             lines.push(Line::from(spans));
@@ -856,6 +854,15 @@ impl App {
         let width = log_area.width.saturating_sub(1) as usize;
 
         let mut lines: Vec<Line> = Vec::new();
+        // Nothing asked yet: invite a first request.
+        if s.conversation.iter().all(|e| matches!(e, Entry::Notice(_) | Entry::Error(_))) {
+            lines.push(Line::from(Span::styled(" How can I help?", self.style(t.ink_strong).add_modifier(Modifier::BOLD))));
+            lines.push(Line::from(Span::styled(" Ask in plain language, for example:", self.style(t.muted))));
+            for q in welcome::suggestions(&s.distro).into_iter().take(4) {
+                lines.push(Line::from(vec![Span::styled("   › ", self.style(t.accent)), Span::styled(q, self.style(t.ink))]));
+            }
+            lines.push(Line::from(""));
+        }
         for e in &s.conversation {
             self.entry_lines(e, width, &mut lines);
             lines.push(Line::from(""));

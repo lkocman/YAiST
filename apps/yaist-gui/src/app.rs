@@ -62,6 +62,8 @@ pub struct App {
     demo_click: Option<(egui::Pos2, usize, std::time::Instant)>,
     /// The choice picked in the open question: (question id, choice index).
     choice: (u64, usize),
+    /// For the input field's pulse at start.
+    opened: std::time::Instant,
 }
 
 /// One table row with every column, and the actions for it.
@@ -115,6 +117,7 @@ impl App {
             confirm_demo,
             demo_click,
             choice: (0, 0),
+            opened: std::time::Instant::now(),
         }
     }
 
@@ -665,7 +668,7 @@ impl App {
                     let support = welcome::support(d, yaist_core::date::today());
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        widgets::tag(ui, mode, t.invert_bg, t.invert_fg);
+                        widgets::tag(ui, mode, t.invert_bg, t.invert_fg).on_hover_text(explanation);
                         match (&support, support.label()) {
                             (welcome::Support::EndOfLife { .. }, Some(label)) => {
                                 let resp = widgets::tag(ui, label, t.bad, t.invert_fg).interact(egui::Sense::click());
@@ -682,7 +685,6 @@ impl App {
                         }
                     });
                     ui.add_space(4.0);
-                    ui.label(RichText::new(explanation).size(13.0).color(t.ink));
                     let sentence = support.sentence();
                     if !sentence.is_empty() {
                         let colour = match support {
@@ -692,8 +694,6 @@ impl App {
                         };
                         ui.label(RichText::new(sentence).size(13.0).color(colour));
                     }
-                    ui.add_space(6.0);
-                    ui.label(RichText::new("Ask YAiST in plain language on the right, or start with one of these.").size(13.0).color(t.muted));
                 });
             });
             ui.add_space(18.0);
@@ -1084,6 +1084,8 @@ impl App {
     fn conversation(&mut self, ui: &mut Ui, v: &View) {
         let t = Tokens::get(ui.ctx());
         let full = ui.max_rect();
+        // Nothing asked yet: only the start notice (and maybe warnings).
+        let fresh = v.conversation.iter().all(|e| matches!(e, Entry::Notice(_) | Entry::Error(_))) && self.input.is_empty();
         ui.painter().vline(full.left() + 0.5, full.y_range(), t.hairline());
 
         egui::Panel::top("conv-head").frame(Frame::new().inner_margin(Margin { left: 20, right: 16, top: 18, bottom: 12 })).show(ui, |ui| {
@@ -1112,7 +1114,21 @@ impl App {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 let (send_w, h) = (84.0, theme::CONTROL_H + 6.0);
                 let (field, _) = ui.allocate_exact_size(vec2(ui.available_width() - send_w - 8.0, h), egui::Sense::hover());
-                ui.painter().rect(field, CornerRadius::ZERO, t.sunken, Stroke::new(1.0, t.line_strong), egui::StrokeKind::Inside);
+                // Until the first request: an accent outline, pulsing three
+                // times at start, so the conversation is noticed.
+                let stroke = if fresh {
+                    let age = self.opened.elapsed().as_secs_f32();
+                    if age < 3.0 {
+                        ui.ctx().request_repaint();
+                        let a = (age * std::f32::consts::PI).sin().abs();
+                        Stroke::new(1.0 + 2.0 * a, t.accent.gamma_multiply(0.45 + 0.55 * a))
+                    } else {
+                        Stroke::new(1.5, t.accent)
+                    }
+                } else {
+                    Stroke::new(1.0, t.line_strong)
+                };
+                ui.painter().rect(field, CornerRadius::ZERO, t.sunken, stroke, egui::StrokeKind::Inside);
                 let mut fu = ui.new_child(
                     egui::UiBuilder::new().max_rect(field.shrink2(vec2(12.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center)),
                 );
@@ -1135,12 +1151,34 @@ impl App {
         egui::CentralPanel::default().frame(Frame::new().inner_margin(Margin { left: 20, right: 12, top: 0, bottom: 0 })).show(ui, |ui| {
             egui::ScrollArea::vertical().stick_to_bottom(true).auto_shrink(false).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 6.0;
+                if fresh {
+                    self.greeting(ui, v);
+                }
                 for e in &v.conversation {
                     self.entry(ui, e);
                     ui.add_space(10.0);
                 }
             });
         });
+    }
+
+    /// The empty conversation invites a first request, with examples that
+    /// send themselves.
+    fn greeting(&mut self, ui: &mut Ui, v: &View) {
+        let t = Tokens::get(ui.ctx());
+        ui.add_space(18.0);
+        ui.label(RichText::new("How can I help?").font(FontId::new(28.0, theme::display())).color(t.ink_strong));
+        ui.label(RichText::new("Ask in plain language. YAiST picks the right tool and shows every change before it runs.").size(13.5).color(t.muted));
+        ui.add_space(10.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+            for q in yaist_ui::welcome::suggestions(&v.distro_info).into_iter().take(4) {
+                if widgets::chip(ui, q).clicked() {
+                    self.acts.push(Act::Submit(q.to_owned()));
+                }
+            }
+        });
+        ui.add_space(18.0);
     }
 
     fn entry(&mut self, ui: &mut Ui, e: &Entry) {
