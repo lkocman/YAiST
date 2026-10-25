@@ -1,7 +1,7 @@
 //! Help the user report a problem, when they decide to: a GitHub issue for
 //! YAiST's own mistakes, or an openSUSE Bugzilla report for the distribution.
-//! Nothing is filed here. The report opens prefilled in the browser, next to a
-//! search for existing reports; the user completes and submits it there, so
+//! Nothing is filed here. The report opens prefilled in the browser; the
+//! user checks for an existing one, completes it and submits it there, so
 //! reports stay few, personal and checked.
 //!
 //! The layout follows openQA's prefilled Bugzilla reports (Observation,
@@ -20,7 +20,7 @@ pub const REPORT: ActionSpec = ActionSpec {
     // In Community, next to its link to Bugzilla.
     id: "community.report_problem",
     title: "Report a problem",
-    description: "Prepare a bug report: a YAiST issue on GitHub (target yaist) when YAiST got something wrong, or an openSUSE Bugzilla report (target opensuse) for a problem in the distribution or a package. It opens prefilled in the browser, next to a search for existing reports; the user completes it there, and nothing is sent until they submit it.",
+    description: "Prepare a bug report: a YAiST issue on GitHub (target yaist) when YAiST got something wrong, or an openSUSE Bugzilla report (target opensuse) for a problem in the distribution or a package. It opens prefilled in the browser; the user completes it there, and nothing is sent until they submit it.",
     // Like opening a community link: it only opens pages in the browser.
     risk: Risk::Read,
     params: &[
@@ -42,17 +42,21 @@ pub fn register(reg: &mut Registry) {
             reproducible: args.str("reproducible").to_owned(),
             environment: environment(&ctx).await,
         };
-        let (form, search) = (report.url(&ctx.distro), report.search_url(&ctx.distro));
-        // The search opens last, so it is the tab the user sees first.
+        let form = report.url(&ctx.distro);
+        // One tab: the report. Bugzilla suggests similar reports itself as
+        // the summary is typed; GitHub doesn't, so its search is offered as
+        // a link.
         ctx.open_in_browser(form.as_str()).await?;
-        ctx.open_in_browser(search.as_str()).await?;
-        let place = match report.target {
-            Target::Yaist => "a new YAiST issue on GitHub",
-            Target::OpenSuse => "a new openSUSE Bugzilla report",
+        let text = match report.target {
+            Target::Yaist => format!(
+                "Opened a new YAiST issue on GitHub, prefilled. Complete it there and submit it; if it is already reported, add to that issue instead.\nExisting issues: {}\nReport: {form}",
+                report.search_url()
+            ),
+            Target::OpenSuse => format!(
+                "Opened a new openSUSE Bugzilla report, prefilled. Complete it there and submit it; Bugzilla suggests similar reports as you edit the summary.\nReport: {form}"
+            ),
         };
-        Ok(Output::Text(format!(
-            "Opened {place}, prefilled, and a search for existing reports. If it is already reported, add to that one instead; otherwise review the text and submit it.\nReport: {form}\nSearch: {search}"
-        )))
+        Ok(Output::Text(text))
     });
     reg.shell(REPORT.id, |a, d| {
         let page = if a.str("target") == "opensuse" {
@@ -61,7 +65,7 @@ pub fn register(reg: &mut Registry) {
         } else {
             format!("{ISSUES}/new")
         };
-        vec!["# search for an existing report first, then:".into(), format!("xdg-open '{page}'")]
+        vec!["# check for an existing report first, then:".into(), format!("xdg-open '{page}'")]
     });
 }
 
@@ -133,16 +137,9 @@ impl Report {
         }
     }
 
-    /// Existing reports with the title's significant words.
-    fn search_url(&self, d: &Distro) -> Url {
-        let words = search_terms(&self.title);
-        match self.target {
-            Target::Yaist => link(ISSUES, &[("q", &format!("is:issue {words}"))]),
-            Target::OpenSuse => {
-                let (product, ..) = bugzilla_product(d);
-                link(&format!("{BUGZILLA}/buglist.cgi"), &[("quicksearch", &format!("product:\"{product}\" {words}"))])
-            }
-        }
+    /// Existing YAiST issues with the title's significant words.
+    fn search_url(&self) -> Url {
+        link(ISSUES, &[("q", &format!("is:issue {}", search_terms(&self.title)))])
     }
 }
 
@@ -160,8 +157,8 @@ fn link(base: &str, params: &[(&str, &str)]) -> Url {
     Url::parse(&format!("{base}?{query}")).expect("static URL")
 }
 
-/// Search words from a title: both Bugzilla's quicksearch and GitHub read
-/// "word:" as a field, so punctuation goes, and so do words every failure
+/// Search words from a title: GitHub reads "word:" as a qualifier, so
+/// punctuation goes, and so do words every failure
 /// has ("failed", "error", "exit status", paths). At most six, the first.
 fn search_terms(title: &str) -> String {
     const GENERIC: &[&str] = &["fails", "failed", "error", "exit", "status", "usr", "bin", "sbin", "the", "and", "with", "for", "yaist"];
@@ -304,7 +301,7 @@ mod tests {
         let url = r.url(&d);
         assert!(url.as_str().starts_with("https://github.com/lkocman/YAiST/issues/new?"));
         assert_eq!(param(&url, "title").as_deref(), Some("Update fails: %post of foo"));
-        assert_eq!(param(&r.search_url(&d), "q").as_deref(), Some("is:issue Update post foo"));
+        assert_eq!(param(&r.search_url(), "q").as_deref(), Some("is:issue Update post foo"));
     }
 
     #[test]
@@ -313,18 +310,13 @@ mod tests {
         assert!(url.as_str().contains("product=openSUSE%20Distribution"), "{url}");
         assert!(url.as_str().contains("short_desc=%5BYAiST%5D%20Update%20fails%3A%20%25post%20of%20foo"), "{url}");
         assert!(!url.as_str().contains('+'), "{url}");
-        let search = report(Target::OpenSuse, "x").search_url(&distro("opensuse-leap", "16.0", ""));
-        assert_eq!(search.query(), Some("quicksearch=product%3A%22openSUSE%20Distribution%22%20Update%20post%20foo"));
+        assert_eq!(report(Target::Yaist, "x").search_url().query(), Some("q=is%3Aissue%20Update%20post%20foo"));
     }
 
     #[test]
     fn search_words_have_no_field_names() {
         let title = "Install Flatpak app fails: /usr/bin/flatpak failed (exit status: 1): error: Nothing matches org.example.Doe";
         assert_eq!(search_terms(title), "Install Flatpak app flatpak Nothing matches");
-        let url = report(Target::OpenSuse, "x").search_url(&distro("opensuse-leap", "16.0", ""));
-        let q = param(&url, "quicksearch").unwrap();
-        assert_eq!(q, "product:\"openSUSE Distribution\" Update post foo");
-        assert_eq!(q.matches(':').count(), 1, "only the product field");
     }
 
     #[test]
