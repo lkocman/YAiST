@@ -29,6 +29,18 @@ pub enum UpdateLevel {
     Security,
 }
 
+/// How to start the local model here: the service from yaist-offline, the
+/// podman script the yaist package ships, or the one in a source checkout.
+pub fn llm_start_hint() -> &'static str {
+    if std::path::Path::new("/usr/lib/systemd/system/yaist-llm.service").exists() {
+        "sudo systemctl enable --now yaist-llm (if it is enabled already: systemctl status yaist-llm)"
+    } else if std::path::Path::new("/usr/libexec/yaist/llm-server.sh").exists() {
+        "/usr/libexec/yaist/llm-server.sh"
+    } else {
+        "scripts/llm-server.sh"
+    }
+}
+
 /// The reboot reminder, when installed changes wait for one: (headline, detail).
 pub fn reboot_notice(u: &UpdateStatus, transactional: bool) -> Option<(String, String)> {
     u.reboot_needed().then(|| {

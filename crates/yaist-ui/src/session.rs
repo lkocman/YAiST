@@ -422,7 +422,8 @@ impl Jobs {
                 Ok(r) => r,
                 Err(e) => {
                     self.sh.push(Entry::Error(format!(
-                        "The local model is not reachable ({e:#}). Start it with scripts/llm-server.sh; /commands and panels work without it."
+                        "The local model is not reachable ({e:#}). Start it with {}; /commands and panels work without it.",
+                        crate::llm_start_hint()
                     )));
                     break;
                 }

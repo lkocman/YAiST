@@ -41,7 +41,20 @@ through HPLIP, like YaST's printer module), Snapshots (snapper: compare, create,
 (Tumbleweed/Slowroll: `zypper dup`; Leap: move to a newer release with the
 repositories switched to it, like opensuse-migration-tool).
 
-## Running
+## Installing
+
+Packages for Tumbleweed, Slowroll and Leap 16 are built in the OBS project
+[home:lkocman:YAiST](https://build.opensuse.org/project/show/home:lkocman:YAiST).
+`yaist` requires the local model, `yaist-offline` (Qwen3-4B with
+llama.cpp, about 2.5 GB, nothing downloaded at run time), which runs as the
+sandboxed `yaist-llm` service:
+
+```sh
+sudo zypper in yaist-gui                  # or yaist for the terminal only
+sudo systemctl enable --now yaist-llm
+```
+
+## Running from source
 
 ```sh
 # 1. The local model (rootless podman, Vulkan GPU if available; first start
