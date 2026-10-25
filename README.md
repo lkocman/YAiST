@@ -43,16 +43,34 @@ repositories switched to it, like opensuse-migration-tool).
 
 ## Installing
 
-Packages for Tumbleweed, Slowroll and Leap 16 are built in the OBS project
+Packages are built in the OBS project
 [home:lkocman:YAiST](https://build.opensuse.org/project/show/home:lkocman:YAiST).
-`yaist` requires the local model, `yaist-offline` (Qwen3-4B with
-llama.cpp, about 2.5 GB, nothing downloaded at run time), which runs as the
-sandboxed `yaist-llm` service:
+Add the repository for your distribution:
 
 ```sh
-sudo zypper in yaist-gui                  # or yaist for the terminal only
-sudo systemctl enable --now yaist-llm
+# openSUSE Tumbleweed
+sudo zypper ar https://download.opensuse.org/repositories/home:/lkocman:/YAiST/openSUSE_Tumbleweed/home:lkocman:YAiST.repo
+# openSUSE Slowroll
+sudo zypper ar https://download.opensuse.org/repositories/home:/lkocman:/YAiST/openSUSE_Slowroll/home:lkocman:YAiST.repo
+# openSUSE Leap 16.0
+sudo zypper ar https://download.opensuse.org/repositories/home:/lkocman:/YAiST/16.0/home:lkocman:YAiST.repo
+# openSUSE Leap 16.1
+sudo zypper ar https://download.opensuse.org/repositories/home:/lkocman:/YAiST/16.1/home:lkocman:YAiST.repo
 ```
+
+Then install it and start the local AI:
+
+```sh
+sudo zypper ref                           # trust the project's signing key when asked
+sudo zypper in yaist-gui                  # desktop and terminal; yaist for the terminal only
+sudo systemctl enable --now yaist-llm
+yaist-gui                                 # or: yaist
+```
+
+`yaist` requires the local model, `yaist-offline`: Qwen3-4B with llama.cpp,
+about 2.5 GB, nothing downloaded at run time. It runs as the sandboxed
+`yaist-llm` service, which is not enabled on its own; until it runs, panels
+and `/commands` work and the conversation says how to start it.
 
 ## Running from source
 
