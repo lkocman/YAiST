@@ -247,9 +247,9 @@ impl App {
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             // The icon carries the name, so no text label beside it.
-            ui.add_space(16.0);
-            ui.add(egui::Image::from_bytes("bytes://yaist-icon.svg", APP_ICON).fit_to_exact_size(vec2(44.0, 44.0))).on_hover_text(yaist_ui::NAME);
-            ui.add_space(20.0);
+            ui.add_space(22.0);
+            ui.add(egui::Image::from_bytes("bytes://yaist-icon.svg", APP_ICON).fit_to_exact_size(vec2(35.0, 35.0))).on_hover_text(yaist_ui::NAME);
+            ui.add_space(24.0);
             widgets::rule(ui, theme::HEADER_H);
             ui.add_space(18.0);
             widgets::tag(ui, "System", t.invert_bg, t.invert_fg);
