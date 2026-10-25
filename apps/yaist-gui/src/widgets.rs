@@ -52,6 +52,25 @@ pub fn tag(ui: &mut Ui, text: &str, fill: Color32, ink: Color32) -> Response {
 }
 
 /// An outlined status label on a sunken fill.
+/// A small clickable box in the badge style: filled with `fill` (the
+/// suggested choice) or outlined like a badge; inverts on hover.
+pub fn badge_button(ui: &mut Ui, text: &str, fill: Option<Color32>) -> Response {
+    let t = Tokens::get(ui.ctx());
+    let probe = caps(ui, text, 10.0, theme::mono_bold(), 1.0, t.ink);
+    let (rect, resp) = ui.allocate_exact_size(vec2(probe.size().x + 16.0, 24.0), Sense::click());
+    let hovered = resp.hovered();
+    let (bg, ink) = match (fill, hovered) {
+        (_, true) => (t.invert_bg, t.invert_fg),
+        (Some(f), false) => (f, t.invert_fg),
+        (None, false) => (t.sunken, t.ink),
+    };
+    let stroke = if fill.is_some() || hovered { egui::Stroke::NONE } else { t.hairline() };
+    ui.painter().rect(rect, CornerRadius::ZERO, bg, stroke, egui::StrokeKind::Inside);
+    let galley = caps(ui, text, 10.0, theme::mono_bold(), 1.0, ink);
+    paint_centred(ui, rect, galley, ink);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 pub fn badge(ui: &mut Ui, text: &str, color: Color32) -> Response {
     let t = Tokens::get(ui.ctx());
     let galley = caps(ui, text, 10.0, theme::mono(), 1.0, color);

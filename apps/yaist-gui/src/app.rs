@@ -1303,31 +1303,33 @@ impl App {
                     // likelier place comes first, with the reason.
                     if yaist_ui::reportable(p) {
                         let (likely, why) = yaist_ui::report_suggestion(m);
-                        let distro = self.session.state().distro.pretty.clone();
-                        let mut links = [
-                            ("opensuse", format!("Report a bug against {}", if distro.is_empty() { "openSUSE" } else { &distro })),
-                            ("yaist", "Report a YAiST issue".to_owned()),
-                        ];
+                        let short = yaist_ui::distro_short(&self.session.state().distro);
+                        let mut links = [("opensuse", format!("Report a {short} bug")), ("yaist", "Report a YAiST issue".to_owned())];
                         if likely == "yaist" {
                             links.reverse();
                         }
-                        ui.add_space(4.0);
-                        if likely == "none" {
-                            ui.label(RichText::new(format!("Probably not a bug: {why}.")).size(12.0).color(t.muted));
-                        }
+                        ui.add_space(6.0);
                         ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 14.0;
+                            ui.spacing_mut().item_spacing.x = 8.0;
                             for (i, (target, label)) in links.iter().enumerate() {
-                                let suggested = i == 0 && likely != "none";
-                                let colour = if suggested { t.accent } else { t.muted };
-                                let text = if suggested { format!("{label}  (suggested: {why})") } else { label.clone() };
-                                let link = ui.add(egui::Button::new(RichText::new(text).size(12.0).color(colour)).frame(false));
-                                if link.on_hover_text("Opens a form; nothing is sent until you submit it in the browser").clicked() {
+                                // The suggested one in the plan colour, the other outlined.
+                                let fill = (i == 0 && likely != "none").then(|| t.risk(Risk::Change));
+                                let b = widgets::badge_button(ui, label, fill);
+                                if b.on_hover_text("Opens a form; nothing is sent until you submit it in the browser").clicked() {
                                     if let Some(f) = yaist_ui::report_form(p, target) {
                                         self.acts.push(Act::Form(f));
                                     }
                                 }
                             }
+                        });
+                        // The reasoning as a tip: a tag and italics in the warning colour.
+                        let tip =
+                            if likely == "none" { format!("Probably not a bug: {why}.") } else { format!("Suggested: {} ({why}).", links[0].1) };
+                        ui.add_space(4.0);
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            widgets::badge(ui, "tip", t.warn);
+                            ui.label(RichText::new(tip).size(12.0).italics().color(t.warn));
                         });
                     }
                 }

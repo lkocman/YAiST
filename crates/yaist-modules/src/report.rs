@@ -195,7 +195,7 @@ async fn environment(ctx: &Context) -> Vec<String> {
 pub fn suggest(error: &str) -> (&'static str, &'static str) {
     let e = error.to_lowercase();
     if not_found(&e) {
-        ("none", "this looks like a name that doesn't exist, not a bug")
+        ("none", "the name doesn't exist, perhaps a typo")
     } else if ["package script failed", "scriptlet", "%post", "%pre"].iter().any(|s| e.contains(s)) {
         ("opensuse", "a package's script failed")
     } else if ["unresolved package conflict", "nothing provides", "conflicts with"].iter().any(|s| e.contains(s)) {
@@ -207,7 +207,19 @@ pub fn suggest(error: &str) -> (&'static str, &'static str) {
 
 /// A package, app or file of that name doesn't exist: usually a typo.
 fn not_found(e: &str) -> bool {
-    ["nothing matches", "not found in package names", "no provider of", "package not found", "no matching"].iter().any(|s| e.contains(s))
+    // Not a bare "not found": "File … not found on medium" is a mirror problem.
+    [
+        "nothing matches",
+        "not found in package names",
+        "no provider of",
+        "package not found",
+        "no matching",
+        "no installed refs found",
+        "not found in the user installation",
+        "not found in the system installation",
+    ]
+    .iter()
+    .any(|s| e.contains(s))
 }
 
 #[cfg(test)]
@@ -282,5 +294,8 @@ mod tests {
         assert_eq!(suggest("unresolved package conflict, no packages were changed: …").0, "opensuse");
         assert_eq!(suggest("could not read zypper's output: unexpected end").0, "yaist");
         assert_eq!(suggest("error: Nothing matches org.example.DoesNotExist in remote flathub").0, "none");
+        assert_eq!(suggest("error: No installed refs found for ‘org.example.NotInstalled’").0, "none");
+        assert_eq!(suggest("error: Remote \"x\" not found in the user installation").0, "none");
+        assert_eq!(suggest("File './hello-2.12.3-1.4.x86_64.rpm' not found on medium 'dir:/tmp/repo'").0, "yaist");
     }
 }
