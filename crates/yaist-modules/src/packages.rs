@@ -66,6 +66,14 @@ const UPDATE_SYSTEM: ActionSpec = ActionSpec {
     params: &[],
 };
 
+const CLEAN: ActionSpec = ActionSpec {
+    id: "packages.clean",
+    title: "Clean caches",
+    description: "Delete downloaded packages and cached repository metadata, then download fresh metadata (zypper clean --all, zypper refresh). Fixes failures from a mirror that was still syncing or a damaged download.",
+    risk: Risk::Change,
+    params: &[],
+};
+
 const REFRESH: ActionSpec = ActionSpec {
     id: "packages.refresh",
     title: "Refresh",
@@ -198,6 +206,12 @@ pub fn register(reg: &mut Registry) {
         let why = phase.map(|p| format!(", {} is in {p}", d.pretty)).unwrap_or_default();
         Ok(Output::Done(format!("System updated ({verb}{why}): {out}.{note}")))
     });
+
+    reg.action(CLEAN, |ctx, _| async move {
+        zypper::clean_and_refresh(&ctx).await?;
+        Ok(Output::Done("Caches cleaned, repository metadata refreshed".into()))
+    });
+    reg.shell(CLEAN.id, |_, _| vec!["sudo zypper clean --all".into(), "sudo zypper refresh".into()]);
 
     reg.action(REFRESH, |ctx, _| async move {
         zypper::change(&ctx, &["refresh"]).await?;

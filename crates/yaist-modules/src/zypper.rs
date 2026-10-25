@@ -146,6 +146,21 @@ const CHANGED: &[i32] = &[0, 100, 101, 102, 103, 106, 107];
 /// With nobody to ask, zypper's default answers apply, as with
 /// `--non-interactive` (a conflict cancels).
 pub async fn interactive(ctx: &Context, args: &[&str]) -> Result<String> {
+    let (failed_commit, result) = run_interactive(ctx, args).await?;
+    let Err(e) = result else { return result };
+    if !failed_commit || !offer_clean_retry(&e).await {
+        return Err(e);
+    }
+    clean_and_refresh(ctx).await?;
+    match run_interactive(ctx, args).await?.1 {
+        Ok(out) => Ok(format!("{out} (after cleaning the caches)")),
+        Err(e) => Err(anyhow!("{e:#}\n(also after cleaning the caches and refreshing)")),
+    }
+}
+
+/// One zypper run: whether the transaction itself failed (after it was
+/// confirmed), and the outcome.
+async fn run_interactive(ctx: &Context, args: &[&str]) -> Result<(bool, Result<String>)> {
     // Wait for the package lock instead of failing on it: a panel query run
     // as root or PackageKit may hold it for a moment. pkexec clears the
     // environment, so the variable goes in through env.
@@ -170,7 +185,31 @@ pub async fn interactive(ctx: &Context, args: &[&str]) -> Result<String> {
         session.take(item).await;
     }
     let code = proc.wait().await?;
-    session.finish(code)
+    Ok((session.commit_failed(code), session.finish(code)))
+}
+
+/// After a failed transaction: a mirror still syncing or a damaged download
+/// in the cache are the usual causes, and cleaning the caches and
+/// refreshing the usual fix. With nobody to ask, no.
+async fn offer_clean_retry(e: &anyhow::Error) -> bool {
+    let q = Question {
+        title: "The package changes failed".into(),
+        text: format!(
+            "{e:#}\n\nThis is often a mirror that is still syncing, or a damaged download in the package cache. Cleaning the caches (zypper clean --all) and refreshing the repositories usually fixes it."
+        ),
+        choices: vec![
+            Choice { value: "retry".into(), label: "Clean the caches, refresh and try again".into(), default: true },
+            Choice { value: "stop".into(), label: "Stop".into(), default: false },
+        ],
+    };
+    ask::ask(q).await.as_deref() == Some("retry")
+}
+
+/// `zypper clean --all`, then fresh metadata.
+pub async fn clean_and_refresh(ctx: &Context) -> Result<()> {
+    change(ctx, &["clean", "--all"]).await?;
+    change(ctx, &["refresh"]).await?;
+    Ok(())
 }
 
 /// One element of zypper's XML stream that matters to us.
@@ -527,6 +566,12 @@ impl Session {
         }
     }
 
+    /// The confirmed transaction failed: not a declined summary or a
+    /// cancelled conflict, and not a failure before there was anything to do.
+    fn commit_failed(&self, code: i32) -> bool {
+        !CHANGED.contains(&code) && self.summary.is_some() && !self.declined && self.unresolved.is_none()
+    }
+
     fn finish(self, code: i32) -> Result<String> {
         if self.declined {
             bail!("cancelled, no packages were changed");
@@ -788,6 +833,18 @@ calls sendmail...</description></solvable>
         assert_eq!(q.title, "Media problem");
         assert!(q.text.starts_with("File './hello-2.12.3-1.4.x86_64.rpm' not found on medium"), "{}", q.text);
         assert_eq!(q.choices.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["a", "r", "i"]);
+    }
+
+    #[test]
+    fn only_failed_transactions_offer_a_retry() {
+        // A confirmed transaction: there is a summary, nobody declined it.
+        let mut s = Session { summary: Some(Summary::default()), ..Default::default() };
+        assert!(s.commit_failed(8));
+        assert!(!s.commit_failed(0));
+        s.declined = true;
+        assert!(!s.commit_failed(4));
+        // Failing before any summary (e.g. a package that doesn't exist).
+        assert!(!Session::default().commit_failed(104));
     }
 
     #[tokio::test]
