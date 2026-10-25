@@ -8,6 +8,7 @@ mod helper;
 mod media;
 mod packages;
 mod printers;
+pub mod report;
 mod repos;
 mod selinux;
 mod services;
@@ -33,6 +34,7 @@ pub fn registry() -> Registry {
         overview_needs_admin: false,
     });
     community::register(&mut reg);
+    report::register(&mut reg);
     system::register(&mut reg);
     users::register(&mut reg);
     services::register(&mut reg);

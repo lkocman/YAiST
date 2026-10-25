@@ -48,20 +48,22 @@ pub struct Param {
     /// Never shown: masked on plan cards, in /commands and terminal
     /// equivalents (e.g. a registration code).
     pub secret: bool,
+    /// Long text (error output, steps): a multi-line field in forms.
+    pub multiline: bool,
 }
 
 impl Param {
     pub const fn text(name: &'static str, help: &'static str) -> Self {
-        Self { name, kind: ParamKind::Text, required: true, help, default: None, validate: None, secret: false }
+        Self { name, kind: ParamKind::Text, required: true, help, default: None, validate: None, secret: false, multiline: false }
     }
     pub const fn integer(name: &'static str, help: &'static str) -> Self {
-        Self { name, kind: ParamKind::Integer, required: true, help, default: None, validate: None, secret: false }
+        Self { name, kind: ParamKind::Integer, required: true, help, default: None, validate: None, secret: false, multiline: false }
     }
     pub const fn boolean(name: &'static str, help: &'static str) -> Self {
-        Self { name, kind: ParamKind::Bool, required: false, help, default: Some("false"), validate: None, secret: false }
+        Self { name, kind: ParamKind::Bool, required: false, help, default: Some("false"), validate: None, secret: false, multiline: false }
     }
     pub const fn choice(name: &'static str, options: &'static [&'static str], help: &'static str) -> Self {
-        Self { name, kind: ParamKind::Choice(options), required: true, help, default: None, validate: None, secret: false }
+        Self { name, kind: ParamKind::Choice(options), required: true, help, default: None, validate: None, secret: false, multiline: false }
     }
     pub const fn required(mut self) -> Self {
         self.required = true;
@@ -75,6 +77,10 @@ impl Param {
     pub const fn default(mut self, value: &'static str) -> Self {
         self.required = false;
         self.default = Some(value);
+        self
+    }
+    pub const fn multiline(mut self) -> Self {
+        self.multiline = true;
         self
     }
     pub const fn secret(mut self) -> Self {

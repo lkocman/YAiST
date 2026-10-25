@@ -20,6 +20,9 @@ pub use state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, St
 /// on rolling releases, transactional-update on immutable systems.
 pub const UPDATE_ACTION: &str = "packages.update_system";
 
+/// The action behind "Report a problem…".
+pub const REPORT_ACTION: &str = yaist_modules::report::REPORT.id;
+
 /// How urgent the update state is, for colouring the badge and banner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpdateLevel {
@@ -115,6 +118,39 @@ pub fn tone_of(value: &str) -> Tone {
 /// Columns whose values are states and get a badge.
 pub fn is_status_column(key: &str) -> bool {
     matches!(key, "active" | "sub" | "enabled" | "is_admin" | "setting" | "status")
+}
+
+/// Whether a failed plan is worth a report at all: not when YAiST refused
+/// before running anything (wrong input: a group that doesn't exist), and
+/// not when the user cancelled.
+pub fn reportable(plan: &Plan) -> bool {
+    let PlanStatus::Failed(error) = &plan.status else { return false };
+    let cancelled = ["cancelled", "authentication was cancelled"].iter().any(|c| error.starts_with(c));
+    !plan.executed.is_empty() && !cancelled && plan.spec.id != REPORT_ACTION
+}
+
+/// Where a failure most likely belongs ("opensuse" or "yaist"), and why.
+pub fn report_suggestion(error: &str) -> (&'static str, &'static str) {
+    yaist_modules::report::suggest(error)
+}
+
+/// A problem report for a failed plan, prefilled with what our code knows:
+/// what was asked, what YAiST ran and the error. The user chose where it
+/// goes, and fills in the rest (what they expected).
+pub fn report_form(plan: &Plan, target: &str) -> Option<Form> {
+    let PlanStatus::Failed(error) = &plan.status else { return None };
+    let first = error.lines().next().unwrap_or("").chars().take(80).collect::<String>();
+    let mut observation = format!("YAiST action: {}\n", plan.command);
+    if !plan.executed.is_empty() {
+        observation.push_str(&format!("\nYAiST ran:\n```\n{}\n```\n", plan.executed.join("\n")));
+    }
+    observation.push_str(&format!("\nIt failed with:\n```\n{error}\n```"));
+    let raw: serde_json::Map<String, serde_json::Value> =
+        [("target", target.to_owned()), ("title", format!("{} fails: {first}", plan.spec.title)), ("observation", observation)]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), serde_json::Value::String(v)))
+            .collect();
+    Some(Form::new(yaist_modules::report::REPORT, &raw))
 }
 
 /// Raw arguments for a row action, taken from the row's matching columns.

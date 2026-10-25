@@ -1297,7 +1297,40 @@ impl App {
                     });
                 }
                 PlanStatus::Done(m) => status_line(ui, "done", t.good, m, t.ink),
-                PlanStatus::Failed(m) => status_line(ui, "failed", t.bad, m, t.bad),
+                PlanStatus::Failed(m) => {
+                    status_line(ui, "failed", t.bad, m, t.bad);
+                    // Only when the user wants to: quiet links, not a prompt. The
+                    // likelier place comes first, with the reason.
+                    if yaist_ui::reportable(p) {
+                        let (likely, why) = yaist_ui::report_suggestion(m);
+                        let distro = self.session.state().distro.pretty.clone();
+                        let mut links = [
+                            ("opensuse", format!("Report a bug against {}", if distro.is_empty() { "openSUSE" } else { &distro })),
+                            ("yaist", "Report a YAiST issue".to_owned()),
+                        ];
+                        if likely == "yaist" {
+                            links.reverse();
+                        }
+                        ui.add_space(4.0);
+                        if likely == "none" {
+                            ui.label(RichText::new(format!("Probably not a bug: {why}.")).size(12.0).color(t.muted));
+                        }
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 14.0;
+                            for (i, (target, label)) in links.iter().enumerate() {
+                                let suggested = i == 0 && likely != "none";
+                                let colour = if suggested { t.accent } else { t.muted };
+                                let text = if suggested { format!("{label}  (suggested: {why})") } else { label.clone() };
+                                let link = ui.add(egui::Button::new(RichText::new(text).size(12.0).color(colour)).frame(false));
+                                if link.on_hover_text("Opens a form; nothing is sent until you submit it in the browser").clicked() {
+                                    if let Some(f) = yaist_ui::report_form(p, target) {
+                                        self.acts.push(Act::Form(f));
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
                 PlanStatus::Cancelled => status_line(ui, "cancelled", t.faint, "", t.faint),
             }
             if !p.executed.is_empty() {
@@ -1386,13 +1419,16 @@ impl App {
                         ui.label(RichText::new(p.help).size(12.0).color(t.faint));
                     }
                     ParamKind::Text | ParamKind::Integer => {
-                        let edit = ui.add(
-                            egui::TextEdit::singleline(&mut form.values[i]).password(p.secret).desired_width(f32::INFINITY).margin(vec2(10.0, 8.0)),
-                        );
+                        let field = if p.multiline {
+                            egui::TextEdit::multiline(&mut form.values[i]).desired_rows(6)
+                        } else {
+                            egui::TextEdit::singleline(&mut form.values[i]).password(p.secret)
+                        };
+                        let edit = ui.add(field.desired_width(f32::INFINITY).margin(vec2(10.0, 8.0)));
                         if i == 0 && !ui.ctx().memory(|m| m.has_focus(edit.id)) && form.values[i].is_empty() {
                             edit.request_focus();
                         }
-                        if edit.lost_focus() && ui.input(|inp| inp.key_pressed(egui::Key::Enter)) {
+                        if !p.multiline && edit.lost_focus() && ui.input(|inp| inp.key_pressed(egui::Key::Enter)) {
                             submit = true;
                         }
                         ui.label(RichText::new(p.help).size(12.0).color(t.faint));
