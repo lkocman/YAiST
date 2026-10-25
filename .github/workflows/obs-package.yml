@@ -1,0 +1,50 @@
+name: OBS package
+
+# After every merge to main, propose the new snapshot to the package on
+# src.opensuse.org (lkocman/YAiST): yaist-bot pushes a branch to its fork and
+# opens a pull request, or refreshes the open one. A maintainer reviews and
+# merges; OBS builds through scmsync. See scripts/obs-package-update.sh.
+#
+# Setup: the "src.opensuse.org" environment (Settings → Environments),
+# restricted to the main branch, with the secret OBS_BOT_TOKEN: a
+# src.opensuse.org application token of yaist-bot with only
+# repository: Read and Write.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer merge supersedes a running update.
+concurrency:
+  group: obs-package
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Propose package update
+    # Forks of the repository have no business here.
+    if: github.repository == 'lkocman/YAiST'
+    runs-on: ubuntu-latest
+    container: registry.opensuse.org/opensuse/tumbleweed:latest
+    environment: src.opensuse.org
+    steps:
+      - name: Install tools
+        run: >-
+          zypper -n in --no-recommends git-core git-lfs cpio osc
+          obs-service-obs_scm obs-service-set_version obs-service-cargo cargo
+      - name: Get the update script
+        # Plain git, no third-party actions near the token.
+        run: |
+          git clone -q "https://github.com/$GITHUB_REPOSITORY.git" src
+          git -C src checkout -q "$GITHUB_SHA"
+      - name: Update the package and open the pull request
+        env:
+          OBS_BOT_USER: yaist-bot
+          OBS_BOT_TOKEN: ${{ secrets.OBS_BOT_TOKEN }}
+          GIT_AUTHOR_NAME: YAiST package bot
+          GIT_AUTHOR_EMAIL: yaist-bot@noreply.src.opensuse.org
+        run: src/scripts/obs-package-update.sh
