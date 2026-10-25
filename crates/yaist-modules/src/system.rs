@@ -50,7 +50,14 @@ const REBOOT: ActionSpec = ActionSpec {
 };
 
 pub fn register(reg: &mut Registry) {
-    reg.module(ModuleSpec { id: "system", title: "System", tagline: "Hostname, time and overview", overview: OVERVIEW.id, row_actions: &[] });
+    reg.module(ModuleSpec {
+        id: "system",
+        title: "System",
+        tagline: "Hostname, time and overview",
+        overview: OVERVIEW.id,
+        row_actions: &[],
+        overview_needs_admin: false,
+    });
 
     reg.action(OVERVIEW, |ctx, _| async move { overview(&ctx).await });
 

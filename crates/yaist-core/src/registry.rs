@@ -25,6 +25,9 @@ pub struct ModuleSpec {
     /// Actions offered on each row of the overview table; parameters are
     /// filled from the row's columns of the same name.
     pub row_actions: &'static [&'static str],
+    /// Reading the overview asks for the administrator password (snapper,
+    /// firewalld zones): the panel loads when asked, not on every visit.
+    pub overview_needs_admin: bool,
 }
 
 #[derive(Clone)]

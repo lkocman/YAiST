@@ -123,6 +123,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Install, remove and update",
         overview: UPDATES.id,
         row_actions: &[UPDATE.id, INFO.id],
+        overview_needs_admin: false,
     });
 
     reg.action(UPDATES, |ctx, _| async move { updates(&ctx).await });

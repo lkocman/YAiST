@@ -9,6 +9,9 @@ use yaist_core::{ActionSpec, Args, Distro, ModuleSpec, Output};
 #[derive(Clone, Debug)]
 pub enum Panel {
     Loading,
+    /// Not loaded: reading it asks for the administrator password, so it
+    /// waits for the user to ask (ModuleSpec::overview_needs_admin).
+    Locked,
     Ready(Output),
     Failed(String),
 }

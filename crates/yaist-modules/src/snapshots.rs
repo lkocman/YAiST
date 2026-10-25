@@ -59,6 +59,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Snapper: compare and roll back",
         overview: LIST.id,
         row_actions: &[CHANGES.id, ROLLBACK.id, DELETE.id],
+        overview_needs_admin: true,
     });
 
     reg.action(LIST, |ctx, _| async move { list(&ctx).await });

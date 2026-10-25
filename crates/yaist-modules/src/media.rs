@@ -62,6 +62,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Steam, graphics drivers, codecs",
         overview: STATUS.id,
         row_actions: &[SET_UP.id],
+        overview_needs_admin: false,
     });
     reg.action(STATUS, |ctx, _| async move { status(&ctx).await });
     reg.action(SET_UP, |ctx, args| async move { set_up(&ctx, &[args.str("item")]).await });

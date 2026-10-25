@@ -24,7 +24,14 @@ use yaist_core::{ModuleSpec, Registry};
 pub fn registry() -> Registry {
     let mut reg = Registry::default();
     // The start screen; clients draw it themselves around the system overview.
-    reg.module(ModuleSpec { id: "welcome", title: "Welcome", tagline: "Start here", overview: "system.overview", row_actions: &[] });
+    reg.module(ModuleSpec {
+        id: "welcome",
+        title: "Welcome",
+        tagline: "Start here",
+        overview: "system.overview",
+        row_actions: &[],
+        overview_needs_admin: false,
+    });
     community::register(&mut reg);
     system::register(&mut reg);
     users::register(&mut reg);

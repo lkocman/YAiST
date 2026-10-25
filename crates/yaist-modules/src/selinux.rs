@@ -59,6 +59,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Mode, booleans and denials",
         overview: BOOLEANS.id,
         row_actions: &[SET_BOOLEAN.id],
+        overview_needs_admin: false,
     });
 
     reg.action(BOOLEANS, |_, args| async move { booleans(args.opt_str("filter")) });

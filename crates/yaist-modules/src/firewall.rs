@@ -72,6 +72,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Ports, services and zones",
         overview: OVERVIEW.id,
         row_actions: &[REMOVE.id],
+        overview_needs_admin: true,
     });
 
     reg.action(OVERVIEW, |ctx, _| async move { overview(&ctx).await });

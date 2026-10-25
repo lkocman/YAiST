@@ -78,7 +78,14 @@ const OPEN: ActionSpec = ActionSpec {
 };
 
 pub fn register(reg: &mut Registry) {
-    reg.module(ModuleSpec { id: "community", title: "Community", tagline: "Chat, events, help, kudos", overview: LIST.id, row_actions: &[OPEN.id] });
+    reg.module(ModuleSpec {
+        id: "community",
+        title: "Community",
+        tagline: "Chat, events, help, kudos",
+        overview: LIST.id,
+        row_actions: &[OPEN.id],
+        overview_needs_admin: false,
+    });
     reg.action(LIST, |_, _| async move { Ok(list()) });
     reg.action(OPEN, |ctx, args| async move {
         ctx.open_in_browser(args.str("link")).await?;

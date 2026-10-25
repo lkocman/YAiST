@@ -181,7 +181,7 @@ impl Session {
             .iter()
             .map(|m| ModuleView {
                 spec: *m,
-                panel: Panel::Loading,
+                panel: if m.overview_needs_admin { Panel::Locked } else { Panel::Loading },
                 actions: reg.module_actions(m.id).into_iter().filter(|a| a.id != m.overview && !m.row_actions.contains(&a.id)).collect(),
                 row_actions: m.row_actions.iter().filter_map(|id| reg.get(id).copied()).collect(),
             })
@@ -260,7 +260,8 @@ impl Session {
         let _ = self.tx.send(cmd);
     }
 
-    /// Selects a module, loading its panel the first time.
+    /// Selects a module, loading its panel the first time; panels that need
+    /// the administrator password wait for Cmd::Refresh.
     pub fn select(&self, index: usize) {
         let load = {
             let mut s = self.state();
@@ -268,7 +269,7 @@ impl Session {
                 return;
             }
             s.selected = index;
-            !matches!(s.modules[index].panel, Panel::Ready(_))
+            !matches!(s.modules[index].panel, Panel::Ready(_) | Panel::Locked)
         };
         if load {
             self.send(Cmd::Refresh(index));

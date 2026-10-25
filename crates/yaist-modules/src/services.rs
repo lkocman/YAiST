@@ -65,6 +65,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Start, stop and enable services",
         overview: LIST.id,
         row_actions: &[STATUS.id, START.id, STOP.id, RESTART.id, ENABLE.id, DISABLE.id],
+        overview_needs_admin: false,
     });
 
     reg.action(LIST, |ctx, args| async move { list(&ctx, args.str("state"), args.opt_str("filter")).await });

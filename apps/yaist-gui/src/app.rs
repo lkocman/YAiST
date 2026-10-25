@@ -398,6 +398,13 @@ impl App {
                     widgets::hud(ui, "loading", t.muted);
                 });
             }
+            Panel::Locked => {
+                ui.label(RichText::new("Reading this needs the administrator password, so it isn't loaded on every visit.").color(t.muted));
+                ui.add_space(8.0);
+                if widgets::button(ui, &format!("Show {}", m.spec.title), Kind::Primary, 0.0).on_hover_text("Asks for your password").clicked() {
+                    self.acts.push(Act::Refresh(v.selected));
+                }
+            }
             Panel::Failed(e) => {
                 Frame::new().stroke(Stroke::new(1.0, t.bad)).inner_margin(Margin::symmetric(14, 12)).show(ui, |ui| {
                     ui.label(RichText::new(e).color(t.bad));

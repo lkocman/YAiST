@@ -91,6 +91,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "New releases and migrations",
         overview: TARGETS.id,
         row_actions: &[MIGRATE.id],
+        overview_needs_admin: false,
     });
     reg.action(TARGETS, |ctx, _| async move { targets(&ctx).await });
     reg.action(MIGRATE, |ctx, args| async move {

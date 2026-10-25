@@ -53,6 +53,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "Accounts and admin rights",
         overview: LIST.id,
         row_actions: &[SET_ADMIN.id, DELETE.id],
+        overview_needs_admin: false,
     });
 
     reg.action(LIST, |_, _| async move { list() });

@@ -640,6 +640,10 @@ impl App {
 
         match &m.panel {
             Panel::Loading => f.render_widget(Paragraph::new(Line::from(self.hud(" loading…", t.faint))), content),
+            Panel::Locked => f.render_widget(
+                Paragraph::new(Line::from(Span::styled(" Reading this needs the administrator password: press r to load it.", self.style(t.muted)))),
+                content,
+            ),
             Panel::Failed(e) => f.render_widget(Paragraph::new(Line::from(Span::styled(format!(" {e}"), self.style(t.bad)))), content),
             Panel::Ready(Output::Table(table)) => {
                 let header = Row::new(table.columns.iter().map(|col| Cell::from(col.title.to_uppercase()).style(self.style(t.faint)))).height(1);

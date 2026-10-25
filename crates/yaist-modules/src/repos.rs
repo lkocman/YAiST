@@ -89,6 +89,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "RPM and Flatpak repositories",
         overview: LIST.id,
         row_actions: &[ENABLE.id, DISABLE.id, REMOVE.id],
+        overview_needs_admin: false,
     });
 
     reg.action(LIST, |ctx, _| async move { list(&ctx).await });

@@ -103,6 +103,7 @@ pub fn register(reg: &mut Registry) {
         tagline: "CUPS printers and HP devices",
         overview: LIST.id,
         row_actions: &[TEST_PAGE.id, SET_DEFAULT.id, ENABLE.id, DISABLE.id, CANCEL_JOBS.id, REMOVE.id],
+        overview_needs_admin: false,
     });
 
     reg.action(LIST, |ctx, _| async move { list(&ctx).await });
