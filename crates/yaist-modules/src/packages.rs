@@ -297,7 +297,8 @@ pub async fn update_counts(ctx: &Context) -> Result<UpdateCounts> {
 async fn updates(ctx: &Context) -> Result<Output> {
     let xml = zypper::query(ctx, &["list-updates"]).await?;
     let doc = zypper::parse(&xml)?;
-    let mut t = Table::new(&[("packages", "Package"), ("current", "Installed"), ("new", "Available"), ("repo", "Repository")]);
+    let mut t = Table::new(&[("packages", "Package"), ("current", "Installed"), ("new", "Available"), ("repo", "Repository")])
+        .essential(&["packages", "new"]);
     for u in doc.descendants().filter(|n| n.has_tag_name("update")) {
         let repo = u.children().find(|c| c.has_tag_name("source")).and_then(|s| s.attribute("alias")).unwrap_or("");
         let attr = |k| u.attribute(k).unwrap_or("").to_owned();

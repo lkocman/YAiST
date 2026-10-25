@@ -164,7 +164,8 @@ async fn list(ctx: &Context, state: &str, filter: Option<&str>) -> Result<Output
         rows.entry(name.clone()).or_insert_with(|| ("inactive".into(), "dead".into(), String::new()));
     }
 
-    let mut t = Table::new(&[("unit", "Service"), ("active", "State"), ("sub", "Detail"), ("enabled", "Boot"), ("description", "Description")]);
+    let mut t = Table::new(&[("unit", "Service"), ("active", "State"), ("sub", "Detail"), ("enabled", "Boot"), ("description", "Description")])
+        .essential(&["unit", "active", "enabled"]);
     for (name, (active, sub, desc)) in rows {
         let enabled = enablement.get(&name).cloned().unwrap_or_else(|| "-".into());
         let keep = match state {

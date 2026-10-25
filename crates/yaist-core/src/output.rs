@@ -12,11 +12,23 @@ pub struct Column {
 pub struct Table {
     pub columns: Vec<Column>,
     pub rows: Vec<Vec<String>>,
+    /// Columns kept when there isn't room for all of them (the rest show on
+    /// request and in a row's details); empty means all.
+    pub essential: Vec<&'static str>,
 }
 
 impl Table {
     pub fn new(columns: &[(&'static str, &'static str)]) -> Self {
-        Self { columns: columns.iter().map(|&(key, title)| Column { key, title }).collect(), rows: Vec::new() }
+        Self { columns: columns.iter().map(|&(key, title)| Column { key, title }).collect(), rows: Vec::new(), essential: Vec::new() }
+    }
+
+    pub fn essential(mut self, keys: &[&'static str]) -> Self {
+        self.essential = keys.to_vec();
+        self
+    }
+
+    pub fn is_essential(&self, column: usize) -> bool {
+        self.essential.is_empty() || self.columns.get(column).is_some_and(|c| self.essential.contains(&c.key))
     }
 
     pub fn push(&mut self, row: Vec<String>) {

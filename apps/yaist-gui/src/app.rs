@@ -50,21 +50,32 @@ pub struct App {
     session: Session,
     input: String,
     form: Option<Form>,
+    /// A row opened in its own dialog (double-click).
+    detail: Option<Detail>,
+    /// Modules whose table shows every column even in a narrow window.
+    all_columns: std::collections::HashSet<&'static str>,
     acts: Vec<Act>,
     shot: Option<Shot>,
     /// Confirm the demo request's plan once it is up (`YAIST_DEMO_CONFIRM`).
     confirm_demo: bool,
-    /// Where to click once (`YAIST_DEMO_CLICK`), and when.
-    demo_click: Option<(egui::Pos2, std::time::Instant)>,
+    /// Where to click (`YAIST_DEMO_CLICK`), how often, and when.
+    demo_click: Option<(egui::Pos2, usize, std::time::Instant)>,
     /// The choice picked in the open question: (question id, choice index).
     choice: (u64, usize),
+}
+
+/// One table row with every column, and the actions for it.
+struct Detail {
+    /// The table's columns and just this row, for the row actions.
+    table: Table,
+    actions: Vec<yaist_core::ActionSpec>,
 }
 
 /// `YAIST_SCREENSHOT=file.ppm`: save one frame after `YAIST_SCREENSHOT_DELAY`
 /// seconds and quit. `YAIST_MODULE` (number) and `YAIST_DEMO` (a request)
 /// set the scene; `YAIST_DEMO_CONFIRM=1` confirms the plan the request
-/// raises, to show what follows, and `YAIST_DEMO_CLICK=x,y` clicks there
-/// after two seconds. For docs and visual checks.
+/// raises, to show what follows, and `YAIST_DEMO_CLICK=x,y[,clicks]` clicks
+/// there after two seconds (2 for a double-click). For docs and visual checks.
 struct Shot {
     path: String,
     after: Duration,
@@ -88,10 +99,23 @@ impl App {
         });
         let confirm_demo = std::env::var("YAIST_DEMO_CONFIRM").is_ok_and(|c| c == "1");
         let demo_click = std::env::var("YAIST_DEMO_CLICK").ok().and_then(|c| {
-            let (x, y) = c.split_once(',')?;
-            Some((egui::pos2(x.trim().parse().ok()?, y.trim().parse().ok()?), std::time::Instant::now() + Duration::from_secs(2)))
+            let mut v = c.split(',').map(|n| n.trim().parse::<f32>());
+            let (x, y) = (v.next()?.ok()?, v.next()?.ok()?);
+            let clicks = v.next().and_then(|n| n.ok()).unwrap_or(1.0) as usize;
+            Some((egui::pos2(x, y), clicks, std::time::Instant::now() + Duration::from_secs(2)))
         });
-        Self { session, input: String::new(), form: None, acts: Vec::new(), shot, confirm_demo, demo_click, choice: (0, 0) }
+        Self {
+            session,
+            input: String::new(),
+            form: None,
+            detail: None,
+            all_columns: Default::default(),
+            acts: Vec::new(),
+            shot,
+            confirm_demo,
+            demo_click,
+            choice: (0, 0),
+        }
     }
 
     fn screenshot(&mut self, ctx: &egui::Context) {
@@ -162,12 +186,13 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        let Some((pos, at)) = self.demo_click else { return };
-        ctx.request_repaint_after(Duration::from_millis(100));
+        let Some((pos, clicks, at)) = self.demo_click else { return };
+        ctx.request_repaint_after(Duration::from_millis(50));
         if std::time::Instant::now() < at {
             return;
         }
-        self.demo_click = None;
+        // One click per frame, so egui sees a double-click as one.
+        self.demo_click = (clicks > 1).then(|| (pos, clicks - 1, at));
         let button = |pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
         raw_input.events.extend([egui::Event::PointerMoved(pos), button(true), button(false)]);
     }
@@ -198,6 +223,7 @@ impl eframe::App for App {
             .show(ui, |ui| self.module_page(ui, &v));
 
         self.form_dialog(&ctx);
+        self.detail_dialog(&ctx);
         if let Some(q) = &v.question {
             self.question_dialog(&ctx, q);
         }
@@ -420,33 +446,71 @@ impl App {
 
     fn table(&mut self, ui: &mut Ui, m: &ModuleView, table: &Table) {
         let t = Tokens::get(ui.ctx());
-        let visible_actions = m.row_actions.len().min(2);
-        let actions_w =
-            if m.row_actions.is_empty() { 0.0 } else { visible_actions as f32 * 90.0 + if m.row_actions.len() > 2 { 40.0 } else { 0.0 } + 8.0 };
         let full_w = ui.available_width();
+        // In a narrow table the row actions go into the ··· menu, so the
+        // columns keep their room.
+        let visible_actions = if full_w < 760.0 { 0 } else { m.row_actions.len().min(2) };
+        let menu = m.row_actions.len() > visible_actions;
+        let actions_w = if m.row_actions.is_empty() { 0.0 } else { visible_actions as f32 * 90.0 + if menu { 40.0 } else { 0.0 } + 8.0 };
         let cols_w = full_w - actions_w - 28.0;
-        // Badge columns get room for their longest label; the other columns
-        // share what is left by how long their content is.
         let longest = |c: usize| table.rows.iter().take(300).map(|r| r[c].chars().count()).max().unwrap_or(0).max(table.columns[c].title.len());
         let is_badge = |c: usize| yaist_ui::is_status_column(table.columns[c].key);
-        let fixed: f32 = (0..table.columns.len()).filter(|&c| is_badge(c)).map(|c| longest(c) as f32 * 7.6 + 26.0).sum();
-        let weights: Vec<f32> = (0..table.columns.len()).map(|c| if is_badge(c) { 0.0 } else { longest(c).clamp(4, 40) as f32 + 1.0 }).collect();
-        let total: f32 = weights.iter().sum::<f32>().max(1.0);
-        let widths: Vec<f32> = (0..table.columns.len())
-            .map(|c| if is_badge(c) { longest(c) as f32 * 7.6 + 26.0 } else { (cols_w - fixed).max(80.0) * weights[c] / total })
+        let badge_w = |c: usize| longest(c) as f32 * 7.6 + 26.0;
+        // A column is readable at about two dozen characters; when not all
+        // of them fit, only the essential ones are shown (unless asked).
+        let readable = |c: usize| if is_badge(c) { badge_w(c) } else { longest(c).clamp(6, 24) as f32 * 7.6 + 16.0 };
+        let n = table.columns.len();
+        let fits = (0..n).map(readable).sum::<f32>() <= cols_w;
+        let all = self.all_columns.contains(m.spec.id);
+        let shown: Vec<usize> = (0..n).filter(|&c| fits || all || table.is_essential(c)).collect();
+        let hidden = n - shown.len();
+        // Badges get room for their longest label, the first column for its
+        // content (it names the row); the rest share what is left by length.
+        let first = shown[0];
+        let badges: f32 = shown.iter().skip(1).filter(|&&c| is_badge(c)).map(|&c| badge_w(c)).sum();
+        let flexible = shown.iter().skip(1).any(|&c| !is_badge(c));
+        // Up to its content; with no other text column, all the room there is.
+        let room = if flexible { cols_w * 0.45 } else { cols_w - badges };
+        let first_w = if is_badge(first) { badge_w(first) } else { (longest(first).clamp(6, 40) as f32 * 7.6 + 16.0).min(room.max(120.0)) };
+        let fixed: f32 = first_w + badges;
+        let weight = |c: usize| longest(c).clamp(4, 40) as f32 + 1.0;
+        let total: f32 = shown.iter().skip(1).filter(|&&c| !is_badge(c)).map(|&c| weight(c)).sum::<f32>().max(1.0);
+        let widths: Vec<f32> = shown
+            .iter()
+            .map(|&c| {
+                if c == first {
+                    first_w
+                } else if is_badge(c) {
+                    badge_w(c)
+                } else {
+                    (cols_w - fixed).max(80.0) * weight(c) / total
+                }
+            })
             .collect();
 
+        if hidden > 0 || (all && !fits) {
+            let label = if hidden > 0 { format!("+ {hidden} columns") } else { "fewer columns".into() };
+            ui.allocate_ui_with_layout(vec2(full_w, 22.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let toggle = ui.add(egui::Button::new(RichText::new(label).size(12.0).color(t.accent)).frame(false));
+                if toggle.on_hover_text("Double-click a row to see all of its fields").clicked() {
+                    if all {
+                        self.all_columns.remove(m.spec.id);
+                    } else {
+                        self.all_columns.insert(m.spec.id);
+                    }
+                }
+            });
+        }
         let (head, _) = ui.allocate_exact_size(vec2(full_w, 34.0), egui::Sense::hover());
         let p = ui.painter();
         p.hline(head.x_range(), head.top() + 0.5, Stroke::new(1.0, t.line_strong));
         p.hline(head.x_range(), head.bottom() - 0.5, t.hairline());
         let mut x = head.left() + 14.0;
-        for (col, w) in table.columns.iter().zip(&widths) {
-            let g = widgets::caps(ui, col.title, theme::HUD_SIZE, theme::mono(), theme::HUD_SPACING, t.faint);
+        for (&c, w) in shown.iter().zip(&widths) {
+            let g = widgets::caps(ui, table.columns[c].title, theme::HUD_SIZE, theme::mono(), theme::HUD_SPACING, t.faint);
             ui.painter().galley(egui::pos2(x, head.center().y - g.size().y / 2.0), g, t.faint);
             x += w;
         }
-
         if table.rows.is_empty() {
             ui.add_space(18.0);
             widgets::hud(ui, "  nothing here", t.faint);
@@ -455,32 +519,37 @@ impl App {
         egui::ScrollArea::vertical().auto_shrink(false).show_rows(ui, ROW_H, table.rows.len(), |ui, range| {
             ui.spacing_mut().item_spacing.y = 0.0;
             for row in &table.rows[range] {
-                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), egui::Sense::hover());
+                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), egui::Sense::click());
                 if resp.contains_pointer() {
                     ui.painter().rect_filled(rect, CornerRadius::ZERO, t.sunken);
                 }
+                if resp.double_clicked() {
+                    let one = Table { columns: table.columns.clone(), rows: vec![row.clone()], essential: Vec::new() };
+                    self.detail = Some(Detail { table: one, actions: m.row_actions.clone() });
+                }
                 ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, t.hairline());
                 let mut x = rect.left() + 14.0;
-                for (c, (value, w)) in row.iter().zip(&widths).enumerate() {
+                for (&c, w) in shown.iter().zip(&widths) {
+                    let value = &row[c];
                     let cell = egui::Rect::from_min_size(egui::pos2(x, rect.top()), vec2((w - 10.0).max(10.0), ROW_H));
                     x += w;
                     let mut cu = ui.new_child(egui::UiBuilder::new().max_rect(cell).layout(egui::Layout::left_to_right(egui::Align::Center)));
                     cu.set_clip_rect(cell.intersect(ui.clip_rect()));
-                    if yaist_ui::is_status_column(table.columns[c].key) && !value.is_empty() {
+                    if is_badge(c) && !value.is_empty() {
                         widgets::badge(&mut cu, value, t.tone(tone_of(value)));
                     } else {
                         let text =
                             if c == 0 { RichText::new(value).family(theme::medium()).color(t.ink_strong) } else { RichText::new(value).color(t.ink) };
-                        cu.add(egui::Label::new(text).truncate());
+                        cu.add(egui::Label::new(text).truncate().selectable(false));
                     }
                 }
                 if !m.row_actions.is_empty() {
                     let area = egui::Rect::from_min_max(egui::pos2(rect.right() - actions_w, rect.top()), rect.max - vec2(8.0, 0.0));
                     let mut au = ui.new_child(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::right_to_left(egui::Align::Center)));
                     au.spacing_mut().item_spacing.x = 6.0;
-                    if m.row_actions.len() > 2 {
+                    if menu {
                         au.menu_button(RichText::new("···").color(t.muted), |ui| {
-                            for a in &m.row_actions[2..] {
+                            for a in &m.row_actions[visible_actions..] {
                                 if ui.button(a.title).clicked() {
                                     self.row_action(a, table, row);
                                     ui.close();
@@ -496,6 +565,52 @@ impl App {
                 }
             }
         });
+    }
+
+    /// One row with all its fields, for narrow windows and long values.
+    fn detail_dialog(&mut self, ctx: &egui::Context) {
+        let Some(d) = &self.detail else { return };
+        let t = Tokens::get(ctx);
+        let row = d.table.rows[0].clone();
+        let modal = egui::Modal::new(egui::Id::new("detail"))
+            .frame(Frame::new().fill(t.bg).stroke(Stroke::new(1.0, t.line_strong)).shadow(theme::shadow(&t)).inner_margin(theme::PAD as i8));
+        let mut chosen = None;
+        let mut close = false;
+        let resp = modal.show(ctx, |ui| {
+            ui.set_width(520.0);
+            ui.label(RichText::new(&row[0]).font(FontId::new(22.0, theme::display())).color(t.ink_strong));
+            ui.add_space(12.0);
+            egui::Grid::new("detail-fields").num_columns(2).spacing(vec2(18.0, 8.0)).show(ui, |ui| {
+                for (col, value) in d.table.columns.iter().zip(&row) {
+                    widgets::hud(ui, col.title, t.faint);
+                    if yaist_ui::is_status_column(col.key) && !value.is_empty() {
+                        widgets::badge(ui, value, t.tone(tone_of(value)));
+                    } else {
+                        ui.add(egui::Label::new(RichText::new(if value.is_empty() { "–" } else { value }).color(t.ink)).wrap());
+                    }
+                    ui.end_row();
+                }
+            });
+            ui.add_space(16.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                for a in &d.actions {
+                    if widgets::button(ui, a.title, Kind::Secondary, 0.0).on_hover_text(a.description).clicked() {
+                        chosen = Some(*a);
+                    }
+                }
+                if widgets::button(ui, "Close", Kind::Primary, 0.0).clicked() {
+                    close = true;
+                }
+            });
+        });
+        if let Some(a) = chosen {
+            let table = d.table.clone();
+            self.detail = None;
+            self.row_action(&a, &table, &row);
+        } else if close || resp.should_close() {
+            self.detail = None;
+        }
     }
 
     /// The start screen: greeting, starting points, questions to try, the

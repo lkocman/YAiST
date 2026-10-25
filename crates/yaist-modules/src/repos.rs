@@ -206,7 +206,8 @@ async fn list(ctx: &Context) -> Result<Output> {
         ("problem", "Problem"),
         ("priority", "Priority"),
         ("url", "URL"),
-    ]);
+    ])
+    .essential(&["alias", "enabled", "status"]);
     for (r, h) in repos.iter().zip(&health) {
         let (status, problem) = match h {
             Health::Unchecked => ("-", String::new()),

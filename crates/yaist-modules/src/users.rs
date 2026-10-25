@@ -163,7 +163,8 @@ fn group_members(group: &str) -> Vec<String> {
 fn list() -> Result<Output> {
     let admins = group_members(ADMIN_GROUP);
     let mut t =
-        Table::new(&[("username", "User"), ("full_name", "Name"), ("uid", "UID"), ("is_admin", "Admin"), ("shell", "Shell"), ("home", "Home")]);
+        Table::new(&[("username", "User"), ("full_name", "Name"), ("uid", "UID"), ("is_admin", "Admin"), ("shell", "Shell"), ("home", "Home")])
+            .essential(&["username", "full_name", "is_admin"]);
     for u in passwd().into_iter().filter(|u| (1000..60000).contains(&u.uid)) {
         let admin = if admins.contains(&u.name) { "yes" } else { "no" };
         t.push(vec![u.name, u.gecos, u.uid.to_string(), admin.into(), u.shell, u.home]);
