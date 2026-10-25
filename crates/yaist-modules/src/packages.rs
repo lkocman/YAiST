@@ -66,6 +66,14 @@ const UPDATE_SYSTEM: ActionSpec = ActionSpec {
     params: &[],
 };
 
+const INSTALL_SECURITY: ActionSpec = ActionSpec {
+    id: "packages.install_security",
+    title: "Install security updates",
+    description: "Install only the pending security patches (Leap: zypper patch --category security). Rolling releases have no separate security updates; there use update_system.",
+    risk: Risk::Dangerous,
+    params: &[],
+};
+
 const CLEAN: ActionSpec = ActionSpec {
     id: "packages.clean",
     title: "Clean caches",
@@ -207,6 +215,21 @@ pub fn register(reg: &mut Registry) {
         let why = phase.map(|p| format!(", {} is in {p}", d.pretty)).unwrap_or_default();
         Ok(Output::Done(format!("System updated ({verb}{why}): {out}.{note}")))
     });
+
+    reg.action(INSTALL_SECURITY, |ctx, _| async move {
+        let d = &ctx.distro;
+        if d.rolling {
+            anyhow::bail!("{} is a rolling release: it has no separate security updates. Install all updates instead.", d.pretty);
+        }
+        if d.transactional {
+            anyhow::bail!("transactional-update can't install only security patches. Install all updates instead.");
+        }
+        let disabled = crate::repos::disable_broken_before_update(&ctx).await?;
+        let note = if disabled.is_empty() { String::new() } else { format!(" Disabled broken repositories: {}.", disabled.join(", ")) };
+        let out = zypper::interactive(&ctx, &["patch", "--category", "security"]).await.map_err(|e| anyhow::anyhow!("{e:#}.{note}"))?;
+        Ok(Output::Done(format!("Security updates installed: {out}.{note}")))
+    });
+    reg.shell(INSTALL_SECURITY.id, |_, _| vec!["sudo zypper patch --category security".into()]);
 
     reg.action(CLEAN, |ctx, _| async move {
         zypper::clean_and_refresh(&ctx).await?;

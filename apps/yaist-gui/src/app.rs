@@ -841,8 +841,16 @@ impl App {
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
-                    if widgets::button(ui, "Install updates", Kind::Primary, 160.0).clicked() {
+                    if widgets::button(ui, "Install all updates", Kind::Primary, 180.0).clicked() {
                         self.acts.push(Act::Propose(UPDATE_ACTION, Map::new()));
+                    }
+                    // Leap's patches can be limited to security fixes.
+                    let d = &v.distro_info;
+                    if level == UpdateLevel::Security && !d.rolling && !d.transactional {
+                        let b = widgets::button(ui, "Security updates only", Kind::Secondary, 0.0);
+                        if b.on_hover_text("zypper patch --category security").clicked() {
+                            self.acts.push(Act::Propose(yaist_ui::SECURITY_ACTION, Map::new()));
+                        }
                     }
                     if with_list_button && widgets::button(ui, "See list", Kind::Secondary, 0.0).clicked() {
                         if let Some(i) = v.modules.iter().position(|m| m.spec.id == "packages") {

@@ -20,6 +20,9 @@ pub use state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, St
 /// on rolling releases, transactional-update on immutable systems.
 pub const UPDATE_ACTION: &str = "packages.update_system";
 
+/// "Install security updates only" (Leap: zypper patch --category security).
+pub const SECURITY_ACTION: &str = "packages.install_security";
+
 /// The action behind "Report a problem…".
 pub const REPORT_ACTION: &str = yaist_modules::report::REPORT.id;
 
@@ -78,15 +81,21 @@ pub fn update_summary(u: &UpdateStatus, transactional: bool) -> (UpdateLevel, St
             format!("{}, from the last repository refresh", ago(checked)),
         ),
         UpdateStatus::Known { packages, security, checked, .. } => {
-            let n = (*packages).max(*security);
-            let headline = format!("{n} update{} available", if n == 1 { "" } else { "s" });
+            let plural = |n: usize, one: &str, many: &str| format!("{n} {}", if n == 1 { one } else { many });
             if *security > 0 {
-                let badge = format!("{n} updates · {security} security");
-                let fixes = if *security == 1 { "fix" } else { "fixes" };
-                let detail = format!("Includes {security} security {fixes}; install them soon.{how} {}.", ago(checked));
+                // Leap counts security fixes as patches, which can cover
+                // several packages each, so both numbers are given as such.
+                let headline = plural(*security, "security patch pending", "security patches pending");
+                let badge = format!("{packages} updates · {security} security");
+                let detail = format!(
+                    "{}, some of them security fixes: install them soon.{how} {}.",
+                    plural(*packages, "package can be updated", "packages can be updated"),
+                    ago(checked)
+                );
                 (UpdateLevel::Security, badge, headline, detail)
             } else {
-                (UpdateLevel::Available, format!("{n} updates"), headline, format!("Bug fixes and improvements.{how} {}.", ago(checked)))
+                let headline = plural(*packages, "update available", "updates available");
+                (UpdateLevel::Available, format!("{packages} updates"), headline, format!("Bug fixes and improvements.{how} {}.", ago(checked)))
             }
         }
     }

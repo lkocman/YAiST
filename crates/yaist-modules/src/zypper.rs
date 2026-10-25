@@ -137,6 +137,8 @@ const PROMPT_DEP_RESOLVE: u32 = 1;
 /// zypper restart needed, some repositories skipped, an RPM scriptlet failed.
 /// Unlike queries, 104 (a package not found) is a failure here.
 const CHANGED: &[i32] = &[0, 100, 101, 102, 103, 106, 107];
+/// zypper updated itself and wants to be run again (ZYPPER_EXIT_INF_RESTART_NEEDED).
+const RESTART_NEEDED: i32 = 103;
 
 /// Runs a package change (`install`, `remove`, `update`, `dup`) with zypper's
 /// prompts put to the user: zypper reads answers from its terminal, so it
@@ -146,21 +148,39 @@ const CHANGED: &[i32] = &[0, 100, 101, 102, 103, 106, 107];
 /// With nobody to ask, zypper's default answers apply, as with
 /// `--non-interactive` (a conflict cancels).
 pub async fn interactive(ctx: &Context, args: &[&str]) -> Result<String> {
-    let (failed_commit, result) = run_interactive(ctx, args).await?;
+    let (failed_commit, mut code, mut result) = run_interactive(ctx, args).await?;
+    // zypper patch updates the package manager first and then exits 103,
+    // asking to be run again for the rest: run it again (twice at most).
+    let mut steps = Vec::new();
+    for _ in 0..2 {
+        match &result {
+            Ok(out) if code == RESTART_NEEDED => {
+                steps.push(format!("{out} (zypper updated itself)"));
+                (_, code, result) = run_interactive(ctx, args).await?;
+            }
+            _ => break,
+        }
+    }
+    if let Ok(out) = &result {
+        if !steps.is_empty() {
+            steps.push(out.clone());
+            return Ok(steps.join("; then "));
+        }
+    }
     let Err(e) = result else { return result };
     if !failed_commit || !offer_clean_retry(&e).await {
         return Err(e);
     }
     clean_and_refresh(ctx).await?;
-    match run_interactive(ctx, args).await?.1 {
+    match run_interactive(ctx, args).await?.2 {
         Ok(out) => Ok(format!("{out} (after cleaning the caches)")),
         Err(e) => Err(anyhow!("{e:#}\n(also after cleaning the caches and refreshing)")),
     }
 }
 
 /// One zypper run: whether the transaction itself failed (after it was
-/// confirmed), and the outcome.
-async fn run_interactive(ctx: &Context, args: &[&str]) -> Result<(bool, Result<String>)> {
+/// confirmed), zypper's exit code, and the outcome.
+async fn run_interactive(ctx: &Context, args: &[&str]) -> Result<(bool, i32, Result<String>)> {
     // Wait for the package lock instead of failing on it: a panel query run
     // as root or PackageKit may hold it for a moment. pkexec clears the
     // environment, so the variable goes in through env.
@@ -185,7 +205,7 @@ async fn run_interactive(ctx: &Context, args: &[&str]) -> Result<(bool, Result<S
         session.take(item).await;
     }
     let code = proc.wait().await?;
-    Ok((session.commit_failed(code), session.finish(code)))
+    Ok((session.commit_failed(code), code, session.finish(code)))
 }
 
 /// After a failed transaction: a mirror still syncing or a damaged download

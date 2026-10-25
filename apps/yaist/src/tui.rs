@@ -303,6 +303,16 @@ impl App {
                 self.session.send(Cmd::Propose { action: UPDATE_ACTION, raw: Default::default() });
                 self.focus = Focus::Input;
             }
+            // Leap only: just the security patches.
+            KeyCode::Char('s')
+                if {
+                    let d = &self.session.state().distro;
+                    !d.rolling && !d.transactional
+                } =>
+            {
+                self.session.send(Cmd::Propose { action: yaist_ui::SECURITY_ACTION, raw: Default::default() });
+                self.focus = Focus::Input;
+            }
             KeyCode::Char('r') => {
                 let i = self.session.state().selected;
                 self.session.send(Cmd::Refresh(i));
@@ -1082,7 +1092,7 @@ impl App {
         } else {
             match self.focus {
                 Focus::Modules => "↑↓ module · enter open · tab focus · ctrl-q quit",
-                Focus::Panel => "↑↓ row · enter row actions · a module actions · u install updates · r refresh · tab focus",
+                Focus::Panel => "↑↓ row · enter row actions · a module actions · u install all updates · s security only · r refresh · tab focus",
                 Focus::Input => "enter send · ↑ history · pgup/pgdn scroll · tab focus · ctrl-q quit",
             }
         };
