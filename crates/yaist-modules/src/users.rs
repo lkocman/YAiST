@@ -10,7 +10,7 @@ const ADMIN_GROUP: &str = "wheel";
 const LIST: ActionSpec = ActionSpec {
     id: "users.list",
     title: "List users",
-    description: "List local human user accounts (UID 1000 and above) and whether they are administrators.",
+    description: "List local human user accounts (UID 1000 and above): whether they are administrators, and their groups.",
     risk: Risk::Read,
     params: &[],
 };
@@ -35,6 +35,35 @@ const SET_ADMIN: ActionSpec = ActionSpec {
     params: &[Param::text("username", "Login name").check(validate::username), Param::boolean("admin", "Administrator or not").required()],
 };
 
+const GROUPS: ActionSpec = ActionSpec {
+    id: "users.groups",
+    title: "List groups",
+    description: "List local groups with their GID and members, e.g. to choose one to add a user to.",
+    risk: Risk::Read,
+    params: &[],
+};
+
+const GROUP_PARAMS: &[Param] = &[
+    Param::text("username", "Login name").check(validate::username),
+    Param::text("group", "Group name, as listed by List groups").check(validate::name),
+];
+
+const ADD_TO_GROUP: ActionSpec = ActionSpec {
+    id: "users.add_to_group",
+    title: "Add to group",
+    description: "Add a user to an existing group (supplementary membership; takes effect at the next login). Some groups give root-level access: wheel (sudo), docker, disk.",
+    risk: Risk::Change,
+    params: GROUP_PARAMS,
+};
+
+const REMOVE_FROM_GROUP: ActionSpec = ActionSpec {
+    id: "users.remove_from_group",
+    title: "Remove from group",
+    description: "Remove a user from a group they are a supplementary member of (takes effect at the next login).",
+    risk: Risk::Change,
+    params: GROUP_PARAMS,
+};
+
 const DELETE: ActionSpec = ActionSpec {
     id: "users.delete",
     title: "Delete user",
@@ -50,9 +79,9 @@ pub fn register(reg: &mut Registry) {
     reg.module(ModuleSpec {
         id: "users",
         title: "Users",
-        tagline: "Accounts and admin rights",
+        tagline: "Accounts, groups and admin rights",
         overview: LIST.id,
-        row_actions: &[SET_ADMIN.id, DELETE.id],
+        row_actions: &[SET_ADMIN.id, ADD_TO_GROUP.id, REMOVE_FROM_GROUP.id, DELETE.id],
         overview_needs_admin: false,
     });
 
@@ -89,6 +118,29 @@ pub fn register(reg: &mut Registry) {
 
     reg.action(DELETE, |ctx, args| async move { delete(&ctx, args.str("username"), args.bool("remove_home")).await });
 
+    reg.action(GROUPS, |_, _| async move { groups() });
+    reg.action(ADD_TO_GROUP, |ctx, args| async move {
+        let (user, group) = (args.str("username"), args.str("group"));
+        human_user(user)?;
+        if !group_exists(group) {
+            bail!("there is no group {group}; List groups shows the existing ones");
+        }
+        if group_members(group).iter().any(|m| m == user) {
+            return Ok(Output::Done(format!("{user} is already in {group}")));
+        }
+        ctx.run_privileged(&["/usr/sbin/usermod", "--append", "--groups", group, "--", user]).await?;
+        Ok(Output::Done(format!("Added {user} to {group}; it takes effect at their next login")))
+    });
+    reg.action(REMOVE_FROM_GROUP, |ctx, args| async move {
+        let (user, group) = (args.str("username"), args.str("group"));
+        human_user(user)?;
+        if !group_members(group).iter().any(|m| m == user) {
+            bail!("{user} is not a member of {group}");
+        }
+        ctx.run_privileged(&["/usr/bin/gpasswd", "--delete", user, group]).await?;
+        Ok(Output::Done(format!("Removed {user} from {group}; it takes effect at their next login")))
+    });
+
     reg.shell(LIST.id, |_, _| vec!["getent passwd".into(), format!("getent group {ADMIN_GROUP}")]);
     reg.shell(CREATE.id, |a, _| {
         let mut cmd = String::from("sudo useradd --create-home");
@@ -109,6 +161,9 @@ pub fn register(reg: &mut Registry) {
             format!("sudo gpasswd --delete {user} {ADMIN_GROUP}")
         }]
     });
+    reg.shell(GROUPS.id, |_, _| vec!["getent group".into()]);
+    reg.shell(ADD_TO_GROUP.id, |a, _| vec![format!("sudo usermod --append --groups {} {}", sq(a.str("group")), sq(a.str("username")))]);
+    reg.shell(REMOVE_FROM_GROUP.id, |a, _| vec![format!("sudo gpasswd --delete {} {}", sq(a.str("username")), sq(a.str("group")))]);
     reg.shell(DELETE.id, |a, _| vec![format!("sudo userdel{} {}", if a.bool("remove_home") { " --remove" } else { "" }, sq(a.str("username")))]);
 }
 
@@ -150,24 +205,50 @@ fn human_user(name: &str) -> Result<User> {
     }
 }
 
-fn group_members(group: &str) -> Vec<String> {
+/// /etc/group: (name, gid, supplementary members).
+fn group_file() -> Vec<(String, String, Vec<String>)> {
     std::fs::read_to_string("/etc/group")
         .unwrap_or_default()
         .lines()
-        .find(|l| l.split(':').next() == Some(group))
-        .and_then(|l| l.split(':').nth(3))
-        .map(|m| m.split(',').filter(|s| !s.is_empty()).map(str::to_owned).collect())
-        .unwrap_or_default()
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split(':').collect();
+            (f.len() >= 4).then(|| (f[0].to_owned(), f[2].to_owned(), f[3].split(',').filter(|s| !s.is_empty()).map(str::to_owned).collect()))
+        })
+        .collect()
+}
+
+fn group_exists(group: &str) -> bool {
+    group_file().iter().any(|(name, ..)| name == group)
+}
+
+fn group_members(group: &str) -> Vec<String> {
+    group_file().into_iter().find(|(name, ..)| name == group).map(|(.., members)| members).unwrap_or_default()
+}
+
+fn groups() -> Result<Output> {
+    let mut t = Table::new(&[("group", "Group"), ("gid", "GID"), ("members", "Members")]);
+    for (name, gid, members) in group_file() {
+        t.push(vec![name, gid, members.join(", ")]);
+    }
+    Ok(Output::Table(t))
 }
 
 fn list() -> Result<Output> {
-    let admins = group_members(ADMIN_GROUP);
-    let mut t =
-        Table::new(&[("username", "User"), ("full_name", "Name"), ("uid", "UID"), ("is_admin", "Admin"), ("shell", "Shell"), ("home", "Home")])
-            .essential(&["username", "full_name", "is_admin"]);
+    let all_groups = group_file();
+    let mut t = Table::new(&[
+        ("username", "User"),
+        ("full_name", "Name"),
+        ("uid", "UID"),
+        ("is_admin", "Admin"),
+        ("groups", "Groups"),
+        ("shell", "Shell"),
+        ("home", "Home"),
+    ])
+    .essential(&["username", "full_name", "is_admin"]);
     for u in passwd().into_iter().filter(|u| (1000..60000).contains(&u.uid)) {
-        let admin = if admins.contains(&u.name) { "yes" } else { "no" };
-        t.push(vec![u.name, u.gecos, u.uid.to_string(), admin.into(), u.shell, u.home]);
+        let mine: Vec<&str> = all_groups.iter().filter(|(_, _, m)| m.contains(&u.name)).map(|(g, ..)| g.as_str()).collect();
+        let admin = if mine.contains(&ADMIN_GROUP) { "yes" } else { "no" };
+        t.push(vec![u.name.clone(), u.gecos, u.uid.to_string(), admin.into(), mine.join(", "), u.shell, u.home]);
     }
     Ok(Output::Table(t))
 }
