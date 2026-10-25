@@ -1,7 +1,10 @@
 //! Repositories: RPM (zypper, including community repositories from the Open
 //! Build Service) and Flatpak remotes (per user, like Flathub).
 
-use anyhow::Result;
+use std::time::Duration;
+
+use anyhow::{bail, Result};
+use yaist_core::ask::{self, Choice, Question};
 use yaist_core::shell_quote as sq;
 use yaist_core::{validate, ActionSpec, Context, ModuleSpec, Output, Param, Registry, Risk, Table};
 
@@ -14,7 +17,7 @@ const KIND_PARAM: Param =
 const LIST: ActionSpec = ActionSpec {
     id: "repos.list",
     title: "List repositories",
-    description: "List configured repositories: RPM repositories (zypper) and Flatpak remotes, with their URL and whether they are enabled.",
+    description: "List configured repositories: RPM repositories (zypper) and Flatpak remotes, with their URL, whether they are enabled, and whether enabled RPM repositories can be reached (status broken: zypper would skip them).",
     risk: Risk::Read,
     params: &[],
 };
@@ -191,19 +194,207 @@ async fn add(ctx: &Context, url: &str, alias: &str) -> Result<Output> {
 }
 
 async fn list(ctx: &Context) -> Result<Output> {
-    let xml = zypper::query(ctx, &["repos"]).await?;
-    let doc = zypper::parse(&xml)?;
-    let mut t =
-        Table::new(&[("alias", "Alias"), ("name", "Name"), ("kind", "Type"), ("enabled", "Enabled"), ("priority", "Priority"), ("url", "URL")]);
-    for r in doc.descendants().filter(|n| n.has_tag_name("repo")) {
-        let url = r.children().find(|c| c.has_tag_name("url")).and_then(|u| u.text()).unwrap_or("");
-        let attr = |k| r.attribute(k).unwrap_or("").to_owned();
-        let enabled = if r.attribute("enabled") == Some("1") { "yes" } else { "no" };
-        t.push(vec![attr("alias"), attr("name"), "rpm".into(), enabled.into(), attr("priority"), url.to_owned()]);
+    let repos = rpm_repos(ctx).await?;
+    let health = check(&repos).await;
+    let mut t = Table::new(&[
+        ("alias", "Alias"),
+        ("name", "Name"),
+        ("kind", "Type"),
+        ("enabled", "Enabled"),
+        ("status", "Status"),
+        ("problem", "Problem"),
+        ("priority", "Priority"),
+        ("url", "URL"),
+    ]);
+    for (r, h) in repos.iter().zip(&health) {
+        let (status, problem) = match h {
+            Health::Unchecked => ("-", String::new()),
+            Health::Ok => ("ok", String::new()),
+            Health::Broken(p) | Health::Unreachable(p) => ("broken", p.clone()),
+        };
+        let enabled = if r.enabled { "yes" } else { "no" };
+        t.push(vec![r.alias.clone(), r.name.clone(), "rpm".into(), enabled.into(), status.into(), problem, r.priority.clone(), r.url.clone()]);
     }
     for remote in flatpak::remotes(ctx).await {
         let kind = if remote.user { "flatpak-user" } else { "flatpak-system" };
-        t.push(vec![remote.name, remote.title, kind.into(), if remote.enabled { "yes" } else { "no" }.into(), "-".into(), remote.url]);
+        let enabled = if remote.enabled { "yes" } else { "no" };
+        t.push(vec![remote.name, remote.title, kind.into(), enabled.into(), "-".into(), String::new(), "-".into(), remote.url]);
     }
     Ok(Output::Table(t))
+}
+
+/// An RPM repository as zypper lists it (URLs with variables expanded).
+struct RpmRepo {
+    alias: String,
+    name: String,
+    url: String,
+    priority: String,
+    enabled: bool,
+    /// `rpm-md`, `yast2`, `plaindir`…; empty until zypper could fetch it.
+    kind: String,
+}
+
+async fn rpm_repos(ctx: &Context) -> Result<Vec<RpmRepo>> {
+    let xml = zypper::query(ctx, &["repos"]).await?;
+    let doc = zypper::parse(&xml)?;
+    Ok(doc
+        .descendants()
+        .filter(|n| n.has_tag_name("repo"))
+        .map(|r| {
+            let attr = |k| r.attribute(k).unwrap_or("").to_owned();
+            RpmRepo {
+                alias: attr("alias"),
+                name: attr("name"),
+                url: r.children().find(|c| c.has_tag_name("url")).and_then(|u| u.text()).unwrap_or("").to_owned(),
+                priority: attr("priority"),
+                enabled: r.attribute("enabled") == Some("1"),
+                kind: attr("type"),
+            }
+        })
+        .collect())
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum Health {
+    /// Disabled, local, or a type without repodata (yast2, plaindir).
+    Unchecked,
+    Ok,
+    /// The server answered, but there is no repository there.
+    Broken(String),
+    /// No answer at all (offline, DNS, timeout).
+    Unreachable(String),
+}
+
+/// Checks enabled online repositories the way zypper's refresh starts, by
+/// fetching repodata/repomd.xml: no root needed, all at once. A 404 is
+/// zypper's "Repository type can't be determined".
+async fn check(repos: &[RpmRepo]) -> Vec<Health> {
+    let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(8)).build() else {
+        return repos.iter().map(|_| Health::Unchecked).collect();
+    };
+    let tasks: Vec<_> = repos
+        .iter()
+        .map(|r| {
+            // No type means zypper never managed to fetch the repository:
+            // exactly the ones worth checking.
+            let rpm_md = matches!(r.kind.as_str(), "rpm-md" | "" | "NONE");
+            let checked = r.enabled && rpm_md && (r.url.starts_with("https://") || r.url.starts_with("http://"));
+            let probe = format!("{}/repodata/repomd.xml", r.url.trim_end_matches('/'));
+            let client = client.clone();
+            tokio::spawn(async move {
+                if !checked {
+                    return Health::Unchecked;
+                }
+                match client.get(&probe).send().await {
+                    Ok(resp) => health_of(resp.status().as_u16()),
+                    Err(e) if e.is_timeout() => Health::Unreachable("no answer".into()),
+                    Err(_) => Health::Unreachable("unreachable".into()),
+                }
+            })
+        })
+        .collect();
+    let mut out = Vec::new();
+    for task in tasks {
+        out.push(task.await.unwrap_or(Health::Unchecked));
+    }
+    out
+}
+
+fn health_of(status: u16) -> Health {
+    match status {
+        200..=299 => Health::Ok,
+        404 | 410 => Health::Broken(format!("no repository at this address (HTTP {status})")),
+        s => Health::Broken(format!("HTTP {s}")),
+    }
+}
+
+/// openSUSE's or SUSE's own repositories: the distribution itself, its
+/// updates and debug/source trees, wherever the alias came from. OBS
+/// projects (/repositories/) and vendors are not.
+fn is_distribution(alias: &str, url: &str) -> bool {
+    if alias.starts_with("openSUSE:") || alias.starts_with("SUSE:") || alias.starts_with("SLE") {
+        return true;
+    }
+    let Some(rest) = url.split_once("://").map(|(_, r)| r) else { return false };
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let opensuse = matches!(host, "download.opensuse.org" | "cdn.opensuse.org" | "downloadcontent.opensuse.org");
+    let suse = host == "updates.suse.com" || host.ends_with(".scc.suse.com");
+    suse || (opensuse && !path.starts_with("repositories/"))
+}
+
+/// Before a system update: zypper skips repositories it can't refresh and
+/// plans without their packages, so a distribution upgrade (dup) could
+/// downgrade or remove what came from them. Asks to disable broken ones
+/// that aren't the distribution's; returns the ones disabled. Offline (every
+/// repository unreachable) or with nobody to ask, nothing changes.
+pub(crate) async fn disable_broken_before_update(ctx: &Context) -> Result<Vec<String>> {
+    let repos = rpm_repos(ctx).await?;
+    let health = check(&repos).await;
+    let checked = health.iter().filter(|h| **h != Health::Unchecked).count();
+    if checked == 0 || health.iter().filter(|h| matches!(h, Health::Unreachable(_))).count() == checked {
+        return Ok(Vec::new());
+    }
+    let broken: Vec<(&RpmRepo, &str)> = repos
+        .iter()
+        .zip(&health)
+        .filter(|(r, _)| !is_distribution(&r.alias, &r.url))
+        .filter_map(|(r, h)| match h {
+            Health::Broken(p) | Health::Unreachable(p) => Some((r, p.as_str())),
+            _ => None,
+        })
+        .collect();
+    if broken.is_empty() {
+        return Ok(Vec::new());
+    }
+    let list = broken.iter().map(|(r, p)| format!("{} ({}): {p}", r.alias, r.url)).collect::<Vec<_>>().join("\n");
+    let (title, them) =
+        if broken.len() == 1 { ("Broken repository".to_owned(), "it") } else { (format!("{} broken repositories", broken.len()), "them") };
+    let q = Question {
+        title,
+        text: format!(
+            "{list}\n\nzypper would skip {them} and update without {them}; a distribution upgrade (dup) could then downgrade or remove what was installed from {them}. Disabled repositories stay configured and can be enabled again in Repositories."
+        ),
+        choices: vec![
+            Choice { value: "disable".into(), label: format!("Disable {them} and update"), default: true },
+            Choice { value: "keep".into(), label: "Update without disabling".into(), default: false },
+            Choice { value: "cancel".into(), label: "Cancel, change nothing".into(), default: false },
+        ],
+    };
+    match ask::ask(q).await.as_deref() {
+        Some("disable") => {
+            let mut disabled = Vec::new();
+            for (r, _) in broken {
+                zypper::change(ctx, &["modifyrepo", "--disable", "--", &r.alias]).await?;
+                disabled.push(r.alias.clone());
+            }
+            Ok(disabled)
+        }
+        Some("cancel") => bail!("cancelled, nothing was changed"),
+        _ => Ok(Vec::new()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn distribution_repositories_by_url() {
+        assert!(is_distribution("https-download.opensuse.org-f0a9b0b6", "https://download.opensuse.org/distribution/leap/16.0/repo/oss/x86_64"));
+        assert!(is_distribution("repo-non-oss", "http://cdn.opensuse.org/distribution/leap/16.0/repo/non-oss/x86_64"));
+        assert!(is_distribution("openSUSE:repo-oss", "http://example.org/"));
+        assert!(!is_distribution(
+            "home_lkocman_branches_graphics",
+            "https://download.opensuse.org/repositories/home:/lkocman:/branches:/graphics/16.0/"
+        ));
+        assert!(!is_distribution("google-chrome", "https://dl.google.com/linux/chrome/rpm/stable/x86_64"));
+        assert!(!is_distribution("openh264", "https://codecs.opensuse.org/openh264/openSUSE_Leap_16"));
+    }
+
+    #[test]
+    fn health_from_http_status() {
+        assert_eq!(health_of(200), Health::Ok);
+        assert_eq!(health_of(404), Health::Broken("no repository at this address (HTTP 404)".into()));
+        assert_eq!(health_of(503), Health::Broken("HTTP 503".into()));
+    }
 }

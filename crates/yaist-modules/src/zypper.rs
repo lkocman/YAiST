@@ -391,6 +391,8 @@ struct Session {
     /// The conflict that was cancelled, if one was.
     unresolved: Option<String>,
     declined: bool,
+    /// Repositories zypper couldn't refresh and went on without.
+    skipped_repos: Vec<String>,
 }
 
 impl Session {
@@ -400,6 +402,10 @@ impl Session {
             Item::Info(text) => {
                 if let Some(n) = text.strip_suffix(" Problems:").and_then(|n| n.trim().parse().ok()) {
                     self.problems = n;
+                }
+                // A warning: "Skipping repository 'x' because of the above error."
+                if let Some(repo) = text.strip_prefix("Skipping repository '").and_then(|r| r.split_once('\'')).map(|(r, _)| r) {
+                    self.skipped_repos.push(repo.to_owned());
                 }
                 None
             }
@@ -493,16 +499,23 @@ impl Session {
 
     fn finish(self, code: i32) -> Result<String> {
         if self.declined {
-            bail!("cancelled, nothing was changed");
+            bail!("cancelled, no packages were changed");
         }
         if let Some(problem) = self.unresolved {
-            bail!("unresolved package conflict, nothing was changed: {problem}");
+            bail!("unresolved package conflict, no packages were changed: {problem}");
         }
         if !CHANGED.contains(&code) {
             let detail = if self.errors.is_empty() { format!("zypper exited with code {code}") } else { last_lines(&self.errors.join("\n"), 6) };
             bail!("{detail}");
         }
-        Ok(self.summary.map(|s| s.headline()).unwrap_or_else(|| "nothing to do".into()))
+        let mut out = self.summary.map(|s| s.headline()).unwrap_or_else(|| "nothing to do".into());
+        if !self.skipped_repos.is_empty() {
+            out.push_str(&format!("; without the repositories that could not be refreshed: {} (see Repositories)", self.skipped_repos.join(", ")));
+        }
+        if code == 107 {
+            out.push_str("; a package script failed, see /var/log/zypp/history");
+        }
+        Ok(out)
     }
 }
 
@@ -699,6 +712,26 @@ calls sendmail...</description></solvable>
         assert!(s.unresolved.unwrap().contains("busybox-which"));
     }
 
+    /// Recorded from `zypper --xmlout update` with an OBS repository that has
+    /// no build for this distribution.
+    const BROKEN_REPO: &str = "<message type=\"error\">Error building the cache:
+[home_lkocman_branches_graphics|https://download.opensuse.org/repositories/home:/lkocman:/branches:/graphics/16.0/] Failed to retrieve new repository metadata.
+ - [home_lkocman_branches_graphics|https://download.opensuse.org/repositories/home:/lkocman:/branches:/graphics/16.0/] Repository type can&apos;t be determined.
+</message>
+<message type=\"warning\">Skipping repository &apos;home_lkocman_branches_graphics&apos; because of the above error.</message>
+<message type=\"error\">Some of the repositories have not been refreshed because of an error.</message>
+";
+
+    #[tokio::test]
+    async fn skipped_repositories_and_failed_scripts_are_reported() {
+        let mut s = Session::default();
+        feed(&mut s, BROKEN_REPO).await;
+        assert_eq!(s.skipped_repos, ["home_lkocman_branches_graphics"]);
+        let out = s.finish(107).unwrap();
+        assert!(out.contains("could not be refreshed: home_lkocman_branches_graphics"), "{out}");
+        assert!(out.ends_with("a package script failed, see /var/log/zypp/history"), "{out}");
+    }
+
     #[tokio::test]
     async fn declining_the_summary_changes_nothing() {
         let asker: ask::Asker = Arc::new(|_| Box::pin(async { Some("n".to_owned()) }));
@@ -708,6 +741,6 @@ calls sendmail...</description></solvable>
             s
         })
         .await;
-        assert!(s.finish(0).unwrap_err().to_string().contains("nothing was changed"));
+        assert!(s.finish(0).unwrap_err().to_string().contains("no packages were changed"));
     }
 }
