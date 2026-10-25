@@ -6,11 +6,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use yaist_agent::{action_id, Agent, LlmClient, LlmConfig};
+use yaist_core::ask::{self, Question};
 use yaist_core::{command, ActionSpec, Context, Registry, Risk};
 
-use crate::state::{Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus};
+use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus};
 
 /// How many tool-calling rounds one request may take before we stop it.
 const MAX_ROUNDS: usize = 5;
@@ -29,6 +30,11 @@ pub enum Cmd {
     Refresh(usize),
     /// Count available updates again.
     CheckUpdates,
+    /// The user's answer to the running change's question.
+    Answer {
+        id: u64,
+        value: String,
+    },
 }
 
 #[derive(Clone)]
@@ -41,6 +47,9 @@ struct Shared {
     /// polkit, and nobody is looking at it.
     panels: bool,
     update_check: Arc<std::sync::atomic::AtomicBool>,
+    /// Questions waiting for an answer, by id.
+    questions: Arc<Mutex<HashMap<u64, oneshot::Sender<String>>>>,
+    next_question: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Shared {
@@ -100,6 +109,34 @@ impl Shared {
             sh.update(|s| s.updates = status);
             sh.update_check.store(false, std::sync::atomic::Ordering::SeqCst);
         });
+    }
+
+    /// Puts questions from a running change in front of the user, one at a
+    /// time, and notes each answer in the conversation.
+    fn asker(&self) -> ask::Asker {
+        let sh = self.clone();
+        Arc::new(move |q: Question| {
+            let sh = sh.clone();
+            Box::pin(async move {
+                let id = sh.next_question.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let (tx, rx) = oneshot::channel();
+                sh.questions.lock().unwrap_or_else(|e| e.into_inner()).insert(id, tx);
+                sh.update(|s| s.question = Some(Asked { id, question: q.clone() }));
+                let answer = rx.await.ok();
+                sh.update(|s| s.question = None);
+                let chosen = answer.as_ref().and_then(|a| q.choices.iter().find(|c| &c.value == a));
+                if let Some(c) = chosen {
+                    sh.push(Entry::Notice(format!("{}: {}", q.title, c.label)));
+                }
+                answer
+            })
+        })
+    }
+
+    fn answer(&self, id: u64, value: String) {
+        if let Some(tx) = self.questions.lock().unwrap_or_else(|e| e.into_inner()).remove(&id) {
+            let _ = tx.send(value);
+        }
     }
 
     /// Brings a module's panel forward, as after an action from the conversation.
@@ -165,21 +202,32 @@ impl Session {
             llm: LlmStatus::Checking,
             llm_url: llm.config.url.clone(),
             updates: UpdateStatus::Checking,
+            question: None,
         }));
 
-        let sh =
-            Shared { reg: reg.clone(), ctx: ctx.clone(), state: state.clone(), notify: Arc::new(notify), panels, update_check: Default::default() };
+        let sh = Shared {
+            reg: reg.clone(),
+            ctx: ctx.clone(),
+            state: state.clone(),
+            notify: Arc::new(notify),
+            panels,
+            update_check: Default::default(),
+            questions: Default::default(),
+            next_question: Arc::new(1.into()),
+        };
         let (tx, mut rx) = mpsc::unbounded_channel::<Cmd>();
         let (job_tx, job_rx) = mpsc::unbounded_channel::<Cmd>();
 
-        // Panel loads run alongside whatever the agent is doing; everything
-        // else is handled in order.
+        // Panel loads run alongside whatever the agent is doing, and answers
+        // reach the change that waits for them; everything else is handled
+        // in order.
         let dispatch_sh = sh.clone();
         runtime.spawn(async move {
             while let Some(cmd) = rx.recv().await {
                 match cmd {
                     Cmd::Refresh(i) => dispatch_sh.refresh(i),
                     Cmd::CheckUpdates => dispatch_sh.check_updates(),
+                    Cmd::Answer { id, value } => dispatch_sh.answer(id, value),
                     other => {
                         let _ = job_tx.send(other);
                     }
@@ -283,6 +331,7 @@ impl Jobs {
                 Cmd::Cancel(id) => self.cancel(id),
                 Cmd::Refresh(i) => self.sh.refresh(i),
                 Cmd::CheckUpdates => self.sh.check_updates(),
+                Cmd::Answer { id, value } => self.sh.answer(id, value),
             }
         }
     }
@@ -421,7 +470,9 @@ impl Jobs {
         };
         self.pending.retain(|&p| p != id);
         self.sh.busy(Some(format!("{}…", spec.title)));
-        let (result, executed) = self.sh.reg.run_logged(self.sh.ctx.clone(), spec.id, args).await;
+        let run = self.sh.reg.run_logged(self.sh.ctx.clone(), spec.id, args);
+        // Headless sessions have nobody to ask; the change takes its defaults.
+        let (result, executed) = if self.sh.panels { ask::asking(self.sh.asker(), run).await } else { run.await };
         self.sh.busy(None);
         let (status, note) = match result {
             Ok(out) => {

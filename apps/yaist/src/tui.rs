@@ -15,7 +15,7 @@ use yaist_core::{ActionSpec, Output, ParamKind, Risk};
 use yaist_ui::palette::{Rgb, Tokens};
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{reboot_notice, update_summary, UpdateLevel, UPDATE_ACTION};
-use yaist_ui::{row_action_is_direct, row_args, tone_of, Cmd, Entry, Form, LlmStatus, Panel, PlanStatus, Session, State};
+use yaist_ui::{row_action_is_direct, row_args, tone_of, Asked, Cmd, Entry, Form, LlmStatus, Panel, PlanStatus, Session, State};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Focus {
@@ -47,6 +47,8 @@ struct App {
     form: Option<Form>,
     form_field: usize,
     plan_choice: usize,
+    /// The choice picked in the open question: (question id, choice index).
+    question_choice: (u64, usize),
     started: Instant,
     quit: bool,
 }
@@ -130,6 +132,7 @@ impl App {
             form: None,
             form_field: 0,
             plan_choice: 0,
+            question_choice: (0, 0),
             started: Instant::now(),
             quit: false,
         }
@@ -144,6 +147,11 @@ impl App {
         if ctrl && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('q')) {
             self.quit = true;
             return;
+        }
+        // A running change waits for this answer; it comes first.
+        let question = self.session.state().question.clone();
+        if let Some(q) = question {
+            return self.question_key(key, &q);
         }
         if self.form.is_some() {
             return self.form_key(key);
@@ -174,6 +182,35 @@ impl App {
             Focus::Input if pending.is_none() => self.input_key(key),
             Focus::Input => {}
         }
+    }
+
+    /// The selected choice of `q`, starting at its default.
+    fn question_selected(&self, q: &Asked) -> usize {
+        if self.question_choice.0 == q.id {
+            self.question_choice.1
+        } else {
+            let choices = &q.question.choices;
+            choices.iter().position(|c| c.default).unwrap_or(choices.len().saturating_sub(1))
+        }
+    }
+
+    fn question_key(&mut self, key: KeyEvent, q: &Asked) {
+        let n = q.question.choices.len();
+        if n == 0 {
+            return;
+        }
+        let sel = self.question_selected(q);
+        let sel = match key.code {
+            KeyCode::Up | KeyCode::Char('k') => (sel + n - 1) % n,
+            KeyCode::Down | KeyCode::Char('j') => (sel + 1) % n,
+            KeyCode::Char(d @ '1'..='9') => (d as usize - '1' as usize).min(n - 1),
+            KeyCode::Enter => {
+                let value = q.question.choices[sel].value.clone();
+                return self.session.send(Cmd::Answer { id: q.id, value });
+            }
+            _ => sel,
+        };
+        self.question_choice = (q.id, sel);
     }
 
     fn cycle_focus(&mut self, forward: bool) {
@@ -497,6 +534,10 @@ impl App {
         }
         if let Some(form) = &self.form {
             self.draw_form(f, area, form);
+        }
+        let question = self.session.state().question.clone();
+        if let Some(q) = question {
+            self.draw_question(f, area, &q);
         }
     }
 
@@ -1019,7 +1060,9 @@ impl App {
 
     fn draw_footer(&self, f: &mut Frame, area: Rect, s: &State) {
         let t = &self.t;
-        let keys = if self.form.is_some() {
+        let keys = if s.question.is_some() {
+            "↑↓ choose · enter answer"
+        } else if self.form.is_some() {
             "enter review · tab next field · space toggle · ←→ choose · esc cancel"
         } else if self.menu.is_some() {
             "↑↓ choose · enter select · esc close"
@@ -1102,6 +1145,39 @@ impl App {
             let st = if sel { Style::new().fg(c(t.ink_strong)).bg(c(t.sunken)) } else { self.style(t.ink) };
             lines.push(Line::from(vec![Span::styled(format!(" {:<w$}", value, w = inner.width.saturating_sub(2) as usize), st)]));
             lines.push(Line::from(Span::styled(if sel { format!(" {}", p.help) } else { String::new() }, self.style(t.faint))));
+        }
+        f.render_widget(Paragraph::new(lines), inner);
+    }
+
+    fn draw_question(&self, f: &mut Frame, area: Rect, asked: &Asked) {
+        let t = &self.t;
+        let q = &asked.question;
+        let width = area.width.saturating_sub(8).min(96);
+        let text_w = width.saturating_sub(4) as usize;
+        let mut text: Vec<String> = wrap(&q.text, text_w);
+        // Long texts (a license) are cut; the choices must stay on screen.
+        let room = area.height.saturating_sub(q.choices.len() as u16 * 2 + 8) as usize;
+        if text.len() > room {
+            text.truncate(room.saturating_sub(1));
+            text.push("…".into());
+        }
+        let choice_lines: Vec<Vec<String>> = q.choices.iter().map(|c| wrap(&c.label, text_w.saturating_sub(6))).collect();
+        let height = text.len() + choice_lines.iter().map(Vec::len).sum::<usize>() + 5;
+        let rect = self.popup(area, width, height as u16);
+        f.render_widget(Clear, rect);
+        let block = self.block(true).title(Line::from(vec![Span::raw(" "), self.hud(&q.title, t.ink_strong), Span::raw(" ")]));
+        let inner = block.inner(rect);
+        f.render_widget(block, rect);
+        let mut lines: Vec<Line> = vec![Line::from("")];
+        lines.extend(text.into_iter().map(|l| Line::from(Span::styled(format!(" {l}"), self.style(t.ink)))));
+        lines.push(Line::from(""));
+        let sel = self.question_selected(asked);
+        for (i, wrapped) in choice_lines.iter().enumerate() {
+            let st = if i == sel { Style::new().fg(c(t.invert_fg)).bg(c(t.invert_bg)).add_modifier(Modifier::BOLD) } else { self.style(t.ink) };
+            for (k, l) in wrapped.iter().enumerate() {
+                let lead = if k == 0 { format!(" {} ", i + 1) } else { "   ".into() };
+                lines.push(Line::from(vec![Span::styled(lead, self.style(t.faint)), Span::styled(format!(" {l} "), st)]));
+            }
         }
         f.render_widget(Paragraph::new(lines), inner);
     }

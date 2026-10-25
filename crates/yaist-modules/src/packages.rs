@@ -124,17 +124,17 @@ pub fn register(reg: &mut Registry) {
     reg.action(INSTALL, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
         let out = pkg_op(&ctx, "install", &pkgs).await?;
-        Ok(Output::Done(format!("Installed {}. {out}", pkgs.join(", "))))
+        Ok(Output::Done(format!("Install {}: {out}", pkgs.join(", "))))
     });
     reg.action(UPDATE, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
         let out = pkg_op(&ctx, "update", &pkgs).await?;
-        Ok(Output::Done(format!("Updated {}. {out}", pkgs.join(", "))))
+        Ok(Output::Done(format!("Update {}: {out}", pkgs.join(", "))))
     });
     reg.action(REMOVE, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
         let out = pkg_op(&ctx, "remove", &pkgs).await?;
-        Ok(Output::Done(format!("Removed {}. {out}", pkgs.join(", "))))
+        Ok(Output::Done(format!("Remove {}: {out}", pkgs.join(", "))))
     });
 
     reg.action(FLATPAK_SEARCH, |ctx, args| async move {
@@ -187,9 +187,9 @@ pub fn register(reg: &mut Registry) {
         let out = if d.transactional {
             zypper::transactional(&ctx, &[if d.rolling { "dup" } else { "up" }]).await?
         } else {
-            zypper::change(&ctx, &[verb]).await?
+            zypper::interactive(&ctx, &[verb]).await?
         };
-        Ok(Output::Done(format!("System updated ({verb}). {out}")))
+        Ok(Output::Done(format!("System updated ({verb}): {out}")))
     });
 
     reg.action(REFRESH, |ctx, _| async move {
@@ -237,7 +237,7 @@ async fn pkg_op(ctx: &Context, op: &str, pkgs: &[&str]) -> Result<String> {
     } else {
         let mut args = vec![op, "--"];
         args.extend_from_slice(pkgs);
-        zypper::change(ctx, &args).await
+        zypper::interactive(ctx, &args).await
     }
 }
 

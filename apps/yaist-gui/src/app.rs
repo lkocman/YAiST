@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 use yaist_core::{Output, ParamKind, Risk, Table};
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{
-    reboot_notice, row_action_is_direct, row_args, tone_of, update_summary, Cmd, Entry, Form, LlmStatus, ModuleView, Panel, Plan, PlanStatus,
+    reboot_notice, row_action_is_direct, row_args, tone_of, update_summary, Asked, Cmd, Entry, Form, LlmStatus, ModuleView, Panel, Plan, PlanStatus,
     Session, UpdateLevel, UpdateStatus, UPDATE_ACTION,
 };
 
@@ -27,6 +27,7 @@ enum Act {
     Cancel(u64),
     Submit(String),
     CheckUpdates,
+    Answer(u64, String),
 }
 
 /// What one frame draws, copied out of the shared state so the backend isn't
@@ -42,6 +43,7 @@ struct View {
     distro_info: yaist_core::Distro,
     pending: bool,
     updates: UpdateStatus,
+    question: Option<Asked>,
 }
 
 pub struct App {
@@ -50,6 +52,8 @@ pub struct App {
     form: Option<Form>,
     acts: Vec<Act>,
     shot: Option<Shot>,
+    /// The choice picked in the open question: (question id, choice index).
+    choice: (u64, usize),
 }
 
 /// `YAIST_SCREENSHOT=file.ppm`: save one frame after `YAIST_SCREENSHOT_DELAY`
@@ -76,7 +80,7 @@ impl App {
             started: std::time::Instant::now(),
             requested: false,
         });
-        Self { session, input: String::new(), form: None, acts: Vec::new(), shot }
+        Self { session, input: String::new(), form: None, acts: Vec::new(), shot, choice: (0, 0) }
     }
 
     fn screenshot(&mut self, ctx: &egui::Context) {
@@ -117,6 +121,7 @@ impl App {
             distro_info: s.distro.clone(),
             pending: s.pending_plan().is_some(),
             updates: s.updates.clone(),
+            question: s.question.clone(),
         }
     }
 
@@ -131,6 +136,7 @@ impl App {
                 Act::Cancel(id) => self.session.send(Cmd::Cancel(id)),
                 Act::Submit(text) => self.session.send(Cmd::Submit(text)),
                 Act::CheckUpdates => self.session.send(Cmd::CheckUpdates),
+                Act::Answer(id, value) => self.session.send(Cmd::Answer { id, value }),
             }
         }
     }
@@ -163,6 +169,9 @@ impl eframe::App for App {
             .show(ui, |ui| self.module_page(ui, &v));
 
         self.form_dialog(&ctx);
+        if let Some(q) = &v.question {
+            self.question_dialog(&ctx, q);
+        }
         widgets::window_edges(&ctx);
         self.apply();
         self.screenshot(&ctx);
@@ -1109,6 +1118,44 @@ impl App {
                         ui.label(RichText::new(c).family(theme::mono()).size(11.5).color(t.muted));
                     }
                 });
+            }
+        });
+    }
+
+    /// A question from the running change, e.g. a package conflict. It can't
+    /// be dismissed: the change waits for the answer, and cancelling is one
+    /// of the choices.
+    fn question_dialog(&mut self, ctx: &egui::Context, asked: &Asked) {
+        let t = Tokens::get(ctx);
+        let q = &asked.question;
+        if self.choice.0 != asked.id {
+            let default = q.choices.iter().position(|c| c.default).unwrap_or(q.choices.len().saturating_sub(1));
+            self.choice = (asked.id, default);
+        }
+        let modal = egui::Modal::new(egui::Id::new("question").with(asked.id))
+            .frame(Frame::new().fill(t.bg).stroke(Stroke::new(1.0, t.line_strong)).shadow(theme::shadow(&t)).inner_margin(theme::PAD as i8));
+        modal.show(ctx, |ui| {
+            ui.set_width(560.0);
+            ui.label(RichText::new(&q.title).font(FontId::new(22.0, theme::display())).color(t.ink_strong));
+            ui.add_space(8.0);
+            if !q.text.is_empty() {
+                Frame::new().fill(t.sunken).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                        ui.label(RichText::new(&q.text).family(theme::mono()).size(12.5).color(t.ink));
+                    });
+                });
+                ui.add_space(12.0);
+            }
+            for (i, c) in q.choices.iter().enumerate() {
+                ui.radio_value(&mut self.choice.1, i, RichText::new(&c.label).size(13.5).color(t.ink));
+                ui.add_space(2.0);
+            }
+            ui.add_space(12.0);
+            if widgets::button(ui, "Continue", Kind::Primary, 120.0).clicked() {
+                if let Some(c) = q.choices.get(self.choice.1) {
+                    self.acts.push(Act::Answer(asked.id, c.value.clone()));
+                }
             }
         });
     }

@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use yaist_core::ask::Question;
 use yaist_core::{ActionSpec, Args, Distro, ModuleSpec, Output};
 
 #[derive(Clone, Debug)]
@@ -73,6 +74,14 @@ pub enum Entry {
     Notice(String),
 }
 
+/// A question from a running change (a package conflict, a license),
+/// waiting for the user's answer.
+#[derive(Clone, Debug)]
+pub struct Asked {
+    pub id: u64,
+    pub question: Question,
+}
+
 /// The result of the background update check.
 #[derive(Clone, Debug)]
 pub enum UpdateStatus {
@@ -113,6 +122,7 @@ pub struct State {
     pub llm: LlmStatus,
     pub llm_url: String,
     pub updates: UpdateStatus,
+    pub question: Option<Asked>,
 }
 
 impl State {

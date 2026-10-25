@@ -277,6 +277,78 @@ impl Context {
             }
         })
     }
+    /// Starts a command as root with a pseudo-terminal as its controlling
+    /// terminal, for tools that read answers from /dev/tty rather than stdin
+    /// (zypper's prompts). Only the tool gets the terminal: `setsid --ctty`
+    /// hands it over after pkexec has authenticated, so pkexec never prompts
+    /// on it. Output stays on a pipe, apart from what the terminal echoes.
+    pub fn spawn_privileged_tty(&self, argv: &[&str]) -> Result<TtyProcess> {
+        let (master, slave) = open_pty()?;
+        let mut full = Vec::new();
+        if effective_uid() != Some(0) {
+            full.push("/usr/bin/pkexec");
+        }
+        full.extend_from_slice(&["/usr/bin/setsid", "--ctty", "--wait"]);
+        full.extend_from_slice(argv);
+        record(full.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
+        let mut child = tokio::process::Command::new(full[0])
+            .args(&full[1..])
+            .env_clear()
+            .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("LC_ALL", "C.UTF-8")
+            .stdin(Stdio::from(slave))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .with_context(|| format!("running {}", argv.first().unwrap_or(&"")))?;
+        let stdout = child.stdout.take().ok_or_else(|| anyhow!("no stdout"))?;
+        Ok(TtyProcess { child, stdout: tokio::io::AsyncBufReadExt::lines(tokio::io::BufReader::new(stdout)), tty: master })
+    }
+}
+
+/// A running [`Context::spawn_privileged_tty`] command.
+pub struct TtyProcess {
+    child: tokio::process::Child,
+    pub stdout: tokio::io::Lines<tokio::io::BufReader<tokio::process::ChildStdout>>,
+    tty: std::fs::File,
+}
+
+impl TtyProcess {
+    /// Types a line on the terminal, as a user answering a prompt would.
+    pub fn answer(&mut self, line: &str) -> Result<()> {
+        use std::io::Write;
+        writeln!(self.tty, "{line}").context("answering the prompt")
+    }
+
+    /// Waits for the command and returns its exit code.
+    pub async fn wait(mut self) -> Result<i32> {
+        let status = self.child.wait().await.context("waiting for the command")?;
+        match status.code() {
+            Some(126) if effective_uid() != Some(0) => bail!("authentication was cancelled"),
+            Some(127) if effective_uid() != Some(0) => bail!("not authorized (no polkit agent? run yaist as root, or from a desktop session)"),
+            Some(code) => Ok(code),
+            None => bail!("the command was killed ({status})"),
+        }
+    }
+}
+
+/// A new pseudo-terminal: (master, slave), both close-on-exec.
+fn open_pty() -> Result<(std::fs::File, std::fs::File)> {
+    use std::os::fd::FromRawFd;
+    let (mut master, mut slave) = (-1, -1);
+    // SAFETY: openpty only writes the two descriptors; name, termios and
+    // window size are optional and passed as null.
+    let r = unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null(), std::ptr::null()) };
+    if r != 0 {
+        return Err(std::io::Error::last_os_error()).context("opening a pseudo-terminal");
+    }
+    for fd in [master, slave] {
+        // SAFETY: fd is a descriptor openpty just returned.
+        unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
+    }
+    // SAFETY: both descriptors are new and owned by nobody else.
+    Ok(unsafe { (std::fs::File::from_raw_fd(master), std::fs::File::from_raw_fd(slave)) })
 }
 
 impl Default for Context {

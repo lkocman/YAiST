@@ -2,7 +2,8 @@
 //! actions.
 //!
 //!   yaist                         start the TUI
-//!   yaist run /firewall overview  run a command; changes need --yes
+//!   yaist run /firewall overview  run a command; changes need --yes, and
+//!                                 questions they raise are asked here
 //!   yaist ask "open port 8080"    ask the agent once; plans are shown, never applied
 //!   yaist help [module]           list commands
 //!   yaist tools                   print the LLM tool definitions (JSON)
@@ -57,7 +58,7 @@ fn cli_run(args: &[String]) -> Result<()> {
         bail!("{} is a {} action: {}\nre-run with --yes to apply", spec.id, spec.risk.label(), command::format(&spec, &args));
     }
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-    let out = rt.block_on(reg.run(Arc::new(Context::new()), spec.id, args))?;
+    let out = rt.block_on(yaist_core::ask::asking(Arc::new(ask_on_terminal), reg.run(Arc::new(Context::new()), spec.id, args)))?;
     match out {
         Output::Table(t) => {
             let widths: Vec<usize> = (0..t.columns.len())
@@ -73,6 +74,37 @@ fn cli_run(args: &[String]) -> Result<()> {
         other => println!("{}", other.to_llm_text(usize::MAX)),
     }
     Ok(())
+}
+
+/// Answers a running change's questions (a package conflict, a license) on
+/// the terminal: choices by number, Enter or end of input for the default.
+fn ask_on_terminal(q: yaist_core::ask::Question) -> yaist_core::BoxFuture<Option<String>> {
+    Box::pin(async move {
+        tokio::task::spawn_blocking(move || {
+            eprintln!("\n{}\n{}\n", q.title, q.text);
+            for (i, c) in q.choices.iter().enumerate() {
+                eprintln!("  {}) {}{}", i + 1, c.label, if c.default { "  [default]" } else { "" });
+            }
+            loop {
+                eprint!("choice: ");
+                let mut line = String::new();
+                if std::io::stdin().read_line(&mut line).ok()? == 0 {
+                    eprintln!();
+                    return q.default_choice().map(|c| c.value.clone());
+                }
+                match line.trim() {
+                    "" => return q.default_choice().map(|c| c.value.clone()),
+                    n => match n.parse::<usize>().ok().and_then(|n| q.choices.get(n.wrapping_sub(1))) {
+                        Some(c) => return Some(c.value.clone()),
+                        None => eprintln!("pick 1-{}", q.choices.len()),
+                    },
+                }
+            }
+        })
+        .await
+        .ok()
+        .flatten()
+    })
 }
 
 /// One request through the full agent path, for testing and latency checks.

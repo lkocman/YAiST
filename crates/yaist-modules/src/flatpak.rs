@@ -56,7 +56,7 @@ pub async fn ensure_installed(ctx: &Context) -> Result<()> {
         crate::zypper::transactional(ctx, &["pkg", "install", "flatpak"]).await?;
         anyhow::bail!("flatpak was installed into a new snapshot; reboot, then try again");
     }
-    crate::zypper::change(ctx, &["install", "--", "flatpak"]).await?;
+    crate::zypper::interactive(ctx, &["install", "--", "flatpak"]).await?;
     Ok(())
 }
 
