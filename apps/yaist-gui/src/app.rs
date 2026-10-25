@@ -76,8 +76,9 @@ struct Detail {
 /// `YAIST_SCREENSHOT=file.ppm`: save one frame after `YAIST_SCREENSHOT_DELAY`
 /// seconds and quit. `YAIST_MODULE` (number) and `YAIST_DEMO` (a request)
 /// set the scene; `YAIST_DEMO_CONFIRM=1` confirms the plan the request
-/// raises, to show what follows, and `YAIST_DEMO_CLICK=x,y[,clicks]` clicks
-/// there after two seconds (2 for a double-click). For docs and visual checks.
+/// raises, to show what follows, and `YAIST_DEMO_CLICK=x,y[,clicks[,seconds]]`
+/// clicks there (2 for a double-click) after two seconds, or as many as given.
+/// For docs and visual checks.
 struct Shot {
     path: String,
     after: Duration,
@@ -104,7 +105,8 @@ impl App {
             let mut v = c.split(',').map(|n| n.trim().parse::<f32>());
             let (x, y) = (v.next()?.ok()?, v.next()?.ok()?);
             let clicks = v.next().and_then(|n| n.ok()).unwrap_or(1.0) as usize;
-            Some((egui::pos2(x, y), clicks, std::time::Instant::now() + Duration::from_secs(2)))
+            let after = v.next().and_then(|n| n.ok()).unwrap_or(2.0);
+            Some((egui::pos2(x, y), clicks, std::time::Instant::now() + Duration::from_secs_f32(after)))
         });
         Self {
             session,
@@ -1315,9 +1317,9 @@ impl App {
                                 // The suggested one in the plan colour, the other outlined.
                                 let fill = (i == 0 && likely != "none").then(|| t.risk(Risk::Change));
                                 let b = widgets::badge_button(ui, label, fill);
-                                if b.on_hover_text("Opens a form; nothing is sent until you submit it in the browser").clicked() {
-                                    if let Some(f) = yaist_ui::report_form(p, target) {
-                                        self.acts.push(Act::Form(f));
+                                if b.on_hover_text("Opens the report prefilled in your browser; complete and submit it there").clicked() {
+                                    if let Some(raw) = yaist_ui::report_args(p, target) {
+                                        self.acts.push(Act::Propose(yaist_ui::REPORT_ACTION, raw));
                                     }
                                 }
                             }

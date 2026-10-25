@@ -1,7 +1,7 @@
 //! Help the user report a problem, when they decide to: a GitHub issue for
 //! YAiST's own mistakes, or an openSUSE Bugzilla report for the distribution.
 //! Nothing is filed here. The report opens prefilled in the browser, next to a
-//! search for existing reports, and the user reviews and submits it, so
+//! search for existing reports; the user completes and submits it there, so
 //! reports stay few, personal and checked.
 //!
 //! The layout follows openQA's prefilled Bugzilla reports (Observation,
@@ -20,8 +20,9 @@ pub const REPORT: ActionSpec = ActionSpec {
     // In Community, next to its link to Bugzilla.
     id: "community.report_problem",
     title: "Report a problem",
-    description: "Prepare a bug report: a YAiST issue on GitHub (target yaist) when YAiST got something wrong, or an openSUSE Bugzilla report (target opensuse) for a problem in the distribution or a package. It opens prefilled in the browser, next to a search for existing reports; nothing is sent until it is reviewed and submitted there.",
-    risk: Risk::Change,
+    description: "Prepare a bug report: a YAiST issue on GitHub (target yaist) when YAiST got something wrong, or an openSUSE Bugzilla report (target opensuse) for a problem in the distribution or a package. It opens prefilled in the browser, next to a search for existing reports; the user completes it there, and nothing is sent until they submit it.",
+    // Like opening a community link: it only opens pages in the browser.
+    risk: Risk::Read,
     params: &[
         Param::choice("target", &["yaist", "opensuse"], "yaist: YAiST did something wrong; opensuse: a package or the distribution is broken").default("yaist"),
         Param::text("title", "One line saying what is wrong, e.g. 'Update fails: %post script of foo exits 1'"),
@@ -56,7 +57,7 @@ pub fn register(reg: &mut Registry) {
     reg.shell(REPORT.id, |a, d| {
         let page = if a.str("target") == "opensuse" {
             let (product, ..) = bugzilla_product(d);
-            Url::parse_with_params(&format!("{BUGZILLA}/enter_bug.cgi"), &[("product", product)]).expect("static URL").to_string()
+            link(&format!("{BUGZILLA}/enter_bug.cgi"), &[("product", &product)]).to_string()
         } else {
             format!("{ISSUES}/new")
         };
@@ -86,9 +87,9 @@ impl Report {
             "always" => "Every time.",
             "sometimes" => "Sometimes.",
             "once" => "Happened once so far.",
-            _ => "Not known yet.",
+            _ => "(please fill in: does it happen again?)",
         };
-        let expected = if self.expected.is_empty() { "(not given)" } else { &self.expected };
+        let expected = if self.expected.is_empty() { "(please fill in: what should have happened?)" } else { &self.expected };
         format!(
             "## Observation\n\n{observation}\n\n## Reproducible\n\n{reproducible}\n\n## Expected result\n\n{expected}\n\n## Environment\n\n{}\n\n---\nPrepared with YAiST's report assistant, reviewed and submitted by the reporter.\n",
             self.environment.join("\n")
@@ -114,9 +115,7 @@ impl Report {
     fn url_with(&self, d: &Distro, observation: &str) -> Url {
         let body = self.body(observation);
         match self.target {
-            Target::Yaist => {
-                Url::parse_with_params(&format!("{ISSUES}/new"), &[("title", self.title.as_str()), ("body", &body)]).expect("static URL")
-            }
+            Target::Yaist => link(&format!("{ISSUES}/new"), &[("title", &self.title), ("body", &body)]),
             Target::OpenSuse => {
                 let (product, version, component) = bugzilla_product(d);
                 // The prefix tells triage where the report comes from.
@@ -128,22 +127,51 @@ impl Report {
                 if let Some(c) = component {
                     params.push(("component", c));
                 }
-                Url::parse_with_params(&format!("{BUGZILLA}/enter_bug.cgi"), &params).expect("static URL")
+                let params: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+                link(&format!("{BUGZILLA}/enter_bug.cgi"), &params)
             }
         }
     }
 
-    /// Existing reports with the same title words.
+    /// Existing reports with the title's significant words.
     fn search_url(&self, d: &Distro) -> Url {
+        let words = search_terms(&self.title);
         match self.target {
-            Target::Yaist => Url::parse_with_params(ISSUES, &[("q", format!("is:issue {}", self.title))]).expect("static URL"),
+            Target::Yaist => link(ISSUES, &[("q", &format!("is:issue {words}"))]),
             Target::OpenSuse => {
                 let (product, ..) = bugzilla_product(d);
-                Url::parse_with_params(&format!("{BUGZILLA}/buglist.cgi"), &[("quicksearch", format!("product:\"{product}\" {}", self.title))])
-                    .expect("static URL")
+                link(&format!("{BUGZILLA}/buglist.cgi"), &[("quicksearch", &format!("product:\"{product}\" {words}"))])
             }
         }
     }
+}
+
+/// `base?k=v&…` encoded the way openQA's prefilled Bugzilla links are:
+/// every byte outside A-Z a-z 0-9 - _ . ~ as %XX, so spaces are %20, not
+/// '+'. Bugzilla's bot check (Anubis) passes the URL on in a redirect and
+/// fails on form-style encoding.
+fn link(base: &str, params: &[(&str, &str)]) -> Url {
+    let enc = |s: &str| {
+        s.bytes()
+            .map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+            .collect::<String>()
+    };
+    let query = params.iter().map(|(k, v)| format!("{}={}", enc(k), enc(v))).collect::<Vec<_>>().join("&");
+    Url::parse(&format!("{base}?{query}")).expect("static URL")
+}
+
+/// Search words from a title: both Bugzilla's quicksearch and GitHub read
+/// "word:" as a field, so punctuation goes, and so do words every failure
+/// has ("failed", "error", "exit status", paths). At most six, the first.
+fn search_terms(title: &str) -> String {
+    const GENERIC: &[&str] = &["fails", "failed", "error", "exit", "status", "usr", "bin", "sbin", "the", "and", "with", "for", "yaist"];
+    title
+        .split(|c: char| !(c.is_alphanumeric() || "-_.+".contains(c)))
+        .map(|w| w.trim_matches(|c: char| ".-_+".contains(c)))
+        .filter(|w| w.len() > 2 && !w.chars().all(|c| c.is_ascii_digit()) && !GENERIC.contains(&w.to_lowercase().as_str()))
+        .take(6)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Bugzilla product, version and component for this system, as the wiki
@@ -179,12 +207,12 @@ async fn environment(ctx: &Context) -> Vec<String> {
         system.push_str(&format!(" ({phase})"));
     }
     let mode = if d.transactional { "immutable" } else { "standard" };
-    let yaist = ctx
-        .run(&["/usr/bin/rpm", "-q", "--qf", "%{VERSION}-%{RELEASE}", "yaist"])
-        .await
-        .ok()
-        .filter(|v| !v.contains("not installed"))
-        .unwrap_or_else(|| format!("{} (built from source)", env!("CARGO_PKG_VERSION")));
+    // The version of what is running: the package's when installed, else a
+    // development build (an installed package says nothing about it).
+    let packaged = std::env::current_exe().is_ok_and(|e| e.starts_with("/usr/"));
+    let rpm = if packaged { ctx.run(&["/usr/bin/rpm", "-qf", "--qf", "%{VERSION}-%{RELEASE}", "/usr/bin/yaist"]).await.ok() } else { None };
+    let yaist =
+        rpm.filter(|v| !v.is_empty() && !v.contains("not owned")).unwrap_or_else(|| format!("{} (development build)", env!("CARGO_PKG_VERSION")));
     vec![format!("- System: {system}, {}, {mode} mode", std::env::consts::ARCH), format!("- YAiST: {yaist}")]
 }
 
@@ -276,7 +304,27 @@ mod tests {
         let url = r.url(&d);
         assert!(url.as_str().starts_with("https://github.com/lkocman/YAiST/issues/new?"));
         assert_eq!(param(&url, "title").as_deref(), Some("Update fails: %post of foo"));
-        assert_eq!(param(&r.search_url(&d), "q").as_deref(), Some("is:issue Update fails: %post of foo"));
+        assert_eq!(param(&r.search_url(&d), "q").as_deref(), Some("is:issue Update post foo"));
+    }
+
+    #[test]
+    fn links_are_encoded_like_openqa() {
+        let url = report(Target::OpenSuse, "a b").url(&distro("opensuse-leap", "16.0", ""));
+        assert!(url.as_str().contains("product=openSUSE%20Distribution"), "{url}");
+        assert!(url.as_str().contains("short_desc=%5BYAiST%5D%20Update%20fails%3A%20%25post%20of%20foo"), "{url}");
+        assert!(!url.as_str().contains('+'), "{url}");
+        let search = report(Target::OpenSuse, "x").search_url(&distro("opensuse-leap", "16.0", ""));
+        assert_eq!(search.query(), Some("quicksearch=product%3A%22openSUSE%20Distribution%22%20Update%20post%20foo"));
+    }
+
+    #[test]
+    fn search_words_have_no_field_names() {
+        let title = "Install Flatpak app fails: /usr/bin/flatpak failed (exit status: 1): error: Nothing matches org.example.Doe";
+        assert_eq!(search_terms(title), "Install Flatpak app flatpak Nothing matches");
+        let url = report(Target::OpenSuse, "x").search_url(&distro("opensuse-leap", "16.0", ""));
+        let q = param(&url, "quicksearch").unwrap();
+        assert_eq!(q, "product:\"openSUSE Distribution\" Update post foo");
+        assert_eq!(q.matches(':').count(), 1, "only the product field");
     }
 
     #[test]

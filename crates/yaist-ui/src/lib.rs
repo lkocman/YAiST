@@ -149,10 +149,10 @@ pub fn report_suggestion(error: &str) -> (&'static str, &'static str) {
     yaist_modules::report::suggest(error)
 }
 
-/// A problem report for a failed plan, prefilled with what our code knows:
-/// what was asked, what YAiST ran and the error. The user chose where it
-/// goes, and fills in the rest (what they expected).
-pub fn report_form(plan: &Plan, target: &str) -> Option<Form> {
+/// Arguments for a problem report about a failed plan, from what our code
+/// knows: what was asked, what YAiST ran and the error. The user chose where
+/// it goes and completes the rest on the report page.
+pub fn report_args(plan: &Plan, target: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
     let PlanStatus::Failed(error) = &plan.status else { return None };
     let first = error.lines().next().unwrap_or("").chars().take(80).collect::<String>();
     let mut observation = format!("YAiST action: {}\n", plan.command);
@@ -160,12 +160,12 @@ pub fn report_form(plan: &Plan, target: &str) -> Option<Form> {
         observation.push_str(&format!("\nYAiST ran:\n```\n{}\n```\n", plan.executed.join("\n")));
     }
     observation.push_str(&format!("\nIt failed with:\n```\n{error}\n```"));
-    let raw: serde_json::Map<String, serde_json::Value> =
+    Some(
         [("target", target.to_owned()), ("title", format!("{} fails: {first}", plan.spec.title)), ("observation", observation)]
             .into_iter()
             .map(|(k, v)| (k.to_owned(), serde_json::Value::String(v)))
-            .collect();
-    Some(Form::new(yaist_modules::report::REPORT, &raw))
+            .collect(),
+    )
 }
 
 /// Raw arguments for a row action, taken from the row's matching columns.
