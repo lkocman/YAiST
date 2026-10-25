@@ -34,7 +34,7 @@ jobs:
       - name: Install toolchain
         run: zypper -n --gpg-auto-import-keys install --no-recommends cargo rust gcc git tar gzip zstd python3
       - uses: actions/checkout@v7
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
