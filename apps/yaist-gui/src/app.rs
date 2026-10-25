@@ -54,6 +54,8 @@ pub struct App {
     shot: Option<Shot>,
     /// Confirm the demo request's plan once it is up (`YAIST_DEMO_CONFIRM`).
     confirm_demo: bool,
+    /// Where to click once (`YAIST_DEMO_CLICK`), and when.
+    demo_click: Option<(egui::Pos2, std::time::Instant)>,
     /// The choice picked in the open question: (question id, choice index).
     choice: (u64, usize),
 }
@@ -61,7 +63,8 @@ pub struct App {
 /// `YAIST_SCREENSHOT=file.ppm`: save one frame after `YAIST_SCREENSHOT_DELAY`
 /// seconds and quit. `YAIST_MODULE` (number) and `YAIST_DEMO` (a request)
 /// set the scene; `YAIST_DEMO_CONFIRM=1` confirms the plan the request
-/// raises, to show what follows. For docs and visual checks.
+/// raises, to show what follows, and `YAIST_DEMO_CLICK=x,y` clicks there
+/// after two seconds. For docs and visual checks.
 struct Shot {
     path: String,
     after: Duration,
@@ -84,7 +87,11 @@ impl App {
             requested: false,
         });
         let confirm_demo = std::env::var("YAIST_DEMO_CONFIRM").is_ok_and(|c| c == "1");
-        Self { session, input: String::new(), form: None, acts: Vec::new(), shot, confirm_demo, choice: (0, 0) }
+        let demo_click = std::env::var("YAIST_DEMO_CLICK").ok().and_then(|c| {
+            let (x, y) = c.split_once(',')?;
+            Some((egui::pos2(x.trim().parse().ok()?, y.trim().parse().ok()?), std::time::Instant::now() + Duration::from_secs(2)))
+        });
+        Self { session, input: String::new(), form: None, acts: Vec::new(), shot, confirm_demo, demo_click, choice: (0, 0) }
     }
 
     fn screenshot(&mut self, ctx: &egui::Context) {
@@ -154,6 +161,17 @@ impl App {
 }
 
 impl eframe::App for App {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        let Some((pos, at)) = self.demo_click else { return };
+        ctx.request_repaint_after(Duration::from_millis(100));
+        if std::time::Instant::now() < at {
+            return;
+        }
+        self.demo_click = None;
+        let button = |pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        raw_input.events.extend([egui::Event::PointerMoved(pos), button(true), button(false)]);
+    }
+
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let t = Tokens::get(&ctx);
