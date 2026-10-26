@@ -208,7 +208,10 @@ pub fn register(reg: &mut Registry) {
         let out = if d.transactional {
             zypper::transactional(&ctx, &[if dup { "dup" } else { "up" }]).await
         } else {
-            zypper::interactive(&ctx, &[verb]).await
+            // Everything downloaded before anything changes: a network
+            // problem stops the update cleanly, and the install itself needs
+            // no network (the update may restart it).
+            zypper::interactive(&ctx, &[verb, "--download-in-advance"]).await
         };
         // The repositories stay disabled whatever happens to the update.
         let out = out.map_err(|e| anyhow::anyhow!("{e:#}.{note}"))?;
@@ -251,8 +254,8 @@ pub fn register(reg: &mut Registry) {
     reg.shell(UPDATE_SYSTEM.id, |_, d| match (d.transactional, d.rolling) {
         (true, true) => vec!["sudo transactional-update --continue dup".into(), "sudo reboot".into()],
         (true, false) => vec!["sudo transactional-update --continue up".into(), "sudo reboot".into()],
-        (false, true) => vec!["sudo zypper dup".into()],
-        (false, false) => vec!["sudo zypper update".into()],
+        (false, true) => vec!["sudo zypper dup --download-in-advance".into()],
+        (false, false) => vec!["sudo zypper update --download-in-advance".into()],
     });
     reg.shell(REFRESH.id, |_, _| vec!["sudo zypper refresh".into()]);
 }

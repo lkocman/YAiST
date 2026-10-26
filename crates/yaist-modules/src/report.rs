@@ -197,6 +197,8 @@ pub fn suggest(error: &str) -> (&'static str, &'static str) {
     let e = error.to_lowercase();
     if not_found(&e) {
         ("none", "the name doesn't exist, perhaps a typo")
+    } else if offline(&e) {
+        ("none", "the network was down or the server unreachable; try again")
     } else if ["package script failed", "scriptlet", "%post", "%pre"].iter().any(|s| e.contains(s)) {
         ("opensuse", "a package's script failed")
     } else if ["unresolved package conflict", "nothing provides", "conflicts with"].iter().any(|s| e.contains(s)) {
@@ -204,6 +206,23 @@ pub fn suggest(error: &str) -> (&'static str, &'static str) {
     } else {
         ("yaist", "no sign of a package problem")
     }
+}
+
+/// The server couldn't be reached at all: no network, no DNS (as for a
+/// moment when an upgrade restarts NetworkManager). A file missing on a
+/// reachable mirror is not this.
+pub(crate) fn offline(e: &str) -> bool {
+    [
+        "could not resolve host",
+        "temporary failure in name resolution",
+        "network is unreachable",
+        "connection refused",
+        "connection timed out",
+        "operation timed out",
+        "dns error",
+    ]
+    .iter()
+    .any(|s| e.contains(s))
 }
 
 /// A package, app or file of that name doesn't exist: usually a typo.
@@ -305,5 +324,8 @@ mod tests {
         assert_eq!(suggest("error: No installed refs found for ‘org.example.NotInstalled’").0, "none");
         assert_eq!(suggest("error: Remote \"x\" not found in the user installation").0, "none");
         assert_eq!(suggest("File './hello-2.12.3-1.4.x86_64.rpm' not found on medium 'dir:/tmp/repo'").0, "yaist");
+        // Seen right after a Leap 16.0 -> 16.1 dup restarted the network.
+        let dns = "/usr/bin/pkexec failed (exit status: 1): - Download (curl) error for 'http://cdn.opensuse.org/distribution/leap/16.1/repo/oss/x86_64/content':\n  Error code: Connection failed\n  Error message: Could not resolve host: cdn.opensuse.org";
+        assert_eq!(suggest(dns).0, "none");
     }
 }

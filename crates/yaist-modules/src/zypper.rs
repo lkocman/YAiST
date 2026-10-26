@@ -189,7 +189,12 @@ async fn run_interactive(ctx: &Context, args: &[&str]) -> Result<(bool, i32, Res
     let mut proc = ctx.spawn_privileged_tty(&argv)?;
     let mut session = Session::default();
     let mut chunk = String::new();
+    let mut last = String::new();
     while let Some(line) = proc.stdout.next_line().await? {
+        if let Some(text) = log_text(&line).filter(|t| *t != last) {
+            yaist_core::log::line(&text);
+            last = text;
+        }
         chunk.push_str(&line);
         chunk.push('\n');
         // zypper waits after each prompt, so everything before one is complete.
@@ -208,10 +213,33 @@ async fn run_interactive(ctx: &Context, args: &[&str]) -> Result<(bool, i32, Res
     Ok((session.commit_failed(code), code, session.finish(code)))
 }
 
+/// What a line of zypper's XML stream says, for the client's log: messages,
+/// and each step (a download, "(12/340) Installing: …") once, when it starts.
+fn log_text(line: &str) -> Option<String> {
+    let line = line.trim();
+    if !(line.starts_with("<message ") && line.ends_with("</message>") || line.starts_with("<progress ") && line.ends_with("/>")) {
+        return None;
+    }
+    let doc = roxmltree::Document::parse(line).ok()?;
+    let n = doc.root_element();
+    let text = match n.tag_name().name() {
+        "message" => n.text()?,
+        _ if n.has_attribute("value") || n.has_attribute("done") => return None,
+        _ => n.attribute("name")?,
+    };
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_owned())
+}
+
 /// After a failed transaction: a mirror still syncing or a damaged download
 /// in the cache are the usual causes, and cleaning the caches and
 /// refreshing the usual fix. With nobody to ask, no.
 async fn offer_clean_retry(e: &anyhow::Error) -> bool {
+    // Not when the network is down: cleaning would throw away good downloads
+    // and fail the same way. The plan card offers to retry instead.
+    if crate::report::offline(&format!("{e:#}").to_lowercase()) {
+        return false;
+    }
     let q = Question {
         title: "The package changes failed".into(),
         text: format!(
@@ -618,6 +646,16 @@ impl Session {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn steps_for_the_log() {
+        use super::log_text;
+        assert_eq!(log_text("<message type=\"info\">Retrieving: hello-2.12.1 (repo-oss (16.0)) (1/1),  60.8 KiB    </message>").as_deref(), Some("Retrieving: hello-2.12.1 (repo-oss (16.0)) (1/1),  60.8 KiB"));
+        assert_eq!(log_text("<progress id=\"install-resolvable\" name=\"(1/1) Installing: hello-2.12.1\"/>").as_deref(), Some("(1/1) Installing: hello-2.12.1"));
+        assert_eq!(log_text("<progress id=\"install-resolvable\" name=\"(1/1) Installing: hello-2.12.1\" value=\"0\"/>"), None);
+        assert_eq!(log_text("<progress id=\"12\" name=\"Building repository &apos;repo-oss&apos; cache\"/>").as_deref(), Some("Building repository 'repo-oss' cache"));
+        assert_eq!(log_text("<solvable type=\"package\" name=\"hello\"/>"), None);
+    }
+
     use std::sync::{Arc, Mutex};
 
     use super::*;

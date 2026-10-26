@@ -138,6 +138,15 @@ pub fn reportable(plan: &Plan) -> bool {
     !plan.executed.is_empty() && !cancelled && plan.spec.id != REPORT_ACTION
 }
 
+/// The snapshot the helper took before an upgrade, as it said in the log
+/// (`==> snapshot N taken before the upgrade`): where a rollback goes back to.
+pub fn snapshot_before(plan: &Plan) -> Option<u32> {
+    if plan.spec.module() != "upgrade" {
+        return None;
+    }
+    plan.log.iter().find_map(|l| l.strip_prefix("==> snapshot ")?.strip_suffix(" taken before the upgrade")?.parse().ok())
+}
+
 /// The distribution's short name for "Report a … bug": Leap, Tumbleweed,
 /// Slowroll, MicroOS, Aeon, Kalpa, Leap Micro.
 pub fn distro_short(d: &yaist_core::Distro) -> &'static str {
@@ -270,5 +279,35 @@ impl Form {
             session.send(Cmd::Cancel(old));
         }
         session.send(Cmd::Propose { action: self.spec.id, raw: self.raw() });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use yaist_core::{ActionSpec, Args, Risk};
+
+    fn plan(id: &'static str, log: &[&str]) -> Plan {
+        let spec = ActionSpec { id, title: "", description: "", risk: Risk::Dangerous, params: &[] };
+        Plan {
+            id: 1,
+            spec,
+            args: Args::default(),
+            command: String::new(),
+            shell: Vec::new(),
+            executed: Vec::new(),
+            log: std::sync::Arc::new(log.iter().map(|l| l.to_string()).collect()),
+            status: PlanStatus::Failed("x".into()),
+            from_agent: false,
+        }
+    }
+
+    #[test]
+    fn rollback_target_from_the_helper_log() {
+        let log = ["==> /usr/bin/snapper -c root create …", "==> snapshot 412 taken before the upgrade", "==> /usr/bin/zypper …"];
+        assert_eq!(snapshot_before(&plan("upgrade.migrate", &log)), Some(412));
+        assert_eq!(snapshot_before(&plan("upgrade.migrate", &["==> /usr/bin/zypper …"])), None);
+        // Only upgrades offer it; another action's output can't fake one.
+        assert_eq!(snapshot_before(&plan("packages.install", &log)), None);
     }
 }

@@ -359,23 +359,50 @@ impl Default for Context {
 async fn run_command(argv: &[&str], ok: &[i32]) -> Result<String> {
     let (prog, rest) = argv.split_first().ok_or_else(|| anyhow!("empty command"))?;
     record(argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
-    let out = tokio::process::Command::new(prog)
-        .args(rest)
+    let mut cmd = tokio::process::Command::new(prog);
+    cmd.args(rest)
         .env_clear()
         .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
         .env("LC_ALL", "C.UTF-8")
         .stdin(Stdio::null())
-        .kill_on_drop(true)
-        .output()
-        .await
-        .with_context(|| format!("running {prog}"))?;
-    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-    if !out.status.code().is_some_and(|c| ok.contains(&c)) {
-        let stderr = String::from_utf8_lossy(&out.stderr);
+        .kill_on_drop(true);
+    let (status, stdout, stderr) = if crate::log::active() {
+        streamed(cmd).await
+    } else {
+        cmd.output().await.map(|o| (o.status, String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned()))
+    }
+    .with_context(|| format!("running {prog}"))?;
+    if !status.code().is_some_and(|c| ok.contains(&c)) {
         let detail = if stderr.trim().is_empty() { stdout.trim() } else { stderr.trim() };
-        bail!("{prog} failed ({}): {}", out.status, last_lines(detail, 6));
+        bail!("{prog} failed ({status}): {}", last_lines(detail, 6));
     }
     Ok(stdout)
+}
+
+/// Runs `cmd`, passing each line of its output to the client's log as it
+/// comes, and collects stdout and stderr as `output()` would.
+async fn streamed(mut cmd: tokio::process::Command) -> std::io::Result<(std::process::ExitStatus, String, String)> {
+    use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
+    async fn collect(pipe: Option<impl AsyncRead + Unpin>) -> String {
+        // Bytes, not lines(): one invalid UTF-8 line must not stop the
+        // reading and leave the command blocked on a full pipe.
+        let mut all = String::new();
+        let Some(pipe) = pipe else { return all };
+        let mut reader = BufReader::new(pipe);
+        let mut buf = Vec::new();
+        while reader.read_until(b'\n', &mut buf).await.is_ok_and(|n| n > 0) {
+            let l = String::from_utf8_lossy(&buf);
+            let l = l.trim_end_matches(['\n', '\r']);
+            crate::log::line(l);
+            all.push_str(l);
+            all.push('\n');
+            buf.clear();
+        }
+        all
+    }
+    let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    let (stdout, stderr) = tokio::join!(collect(child.stdout.take()), collect(child.stderr.take()));
+    Ok((child.wait().await?, stdout, stderr))
 }
 
 pub fn last_lines(text: &str, n: usize) -> String {
@@ -432,5 +459,25 @@ mod tests {
     fn read_only_root_means_immutable() {
         let d = Distro::from_os_release("ID=\"opensuse-tumbleweed\"\n", true);
         assert!(d.rolling && d.transactional);
+    }
+
+    #[tokio::test]
+    async fn output_reaches_the_log_as_it_comes() {
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        let logger: crate::log::Logger = std::sync::Arc::new(move |l| sink.lock().unwrap().push(l));
+        let script = "printf 'one\\n'; printf 'Retrieving 10%%\\rRetrieving done\\n'; printf '\\377bad\\n'; echo oops >&2; printf 'last\\n'";
+        let out = crate::log::logging(logger, super::run_command(&["/bin/sh", "-c", script], &[0])).await.unwrap();
+        assert_eq!(out, "one\nRetrieving 10%\rRetrieving done\n\u{fffd}bad\nlast\n");
+        let mut seen = seen.lock().unwrap().clone();
+        seen.sort();
+        assert_eq!(seen, ["Retrieving done", "last", "one", "oops", "\u{fffd}bad"]);
+    }
+
+    #[tokio::test]
+    async fn failures_still_say_why_when_streamed() {
+        let logger: crate::log::Logger = std::sync::Arc::new(|_| ());
+        let e = crate::log::logging(logger, super::run_command(&["/bin/sh", "-c", "echo broken >&2; exit 3"], &[0])).await.unwrap_err();
+        assert!(e.to_string().contains("broken"), "{e}");
     }
 }

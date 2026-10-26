@@ -8,6 +8,7 @@ pub mod ask;
 pub mod command;
 mod context;
 pub mod date;
+pub mod log;
 mod output;
 mod registry;
 pub mod validate;

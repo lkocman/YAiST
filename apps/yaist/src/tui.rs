@@ -999,7 +999,11 @@ impl App {
                         Span::styled(" └ ", self.style(risk)),
                         self.hud("waiting for you: [y] confirm  [e] edit  [n] cancel", t.warn),
                     ]),
-                    PlanStatus::Running => Line::from(vec![Span::styled(" └ ", self.style(risk)), self.hud("running…", t.muted)]),
+                    PlanStatus::Running => {
+                        // The latest line of output says what is happening right now.
+                        let last = p.log.last().map(|l| format!(" {}", clip(l, width.saturating_sub(16)))).unwrap_or_default();
+                        Line::from(vec![Span::styled(" └ ", self.style(risk)), self.hud("running…", t.muted), Span::styled(last, self.style(t.faint))])
+                    }
                     PlanStatus::Done(m) => Line::from(vec![
                         Span::styled(" └ ", self.style(t.good)),
                         self.badge("done", t.good),

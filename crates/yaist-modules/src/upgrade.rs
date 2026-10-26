@@ -106,13 +106,15 @@ pub fn register(reg: &mut Registry) {
     reg.shell(MIGRATE.id, |a, d| migrate_shell(a.str("target"), a.str("keep_enabled"), d));
     reg.shell(TO_SLE.id, |a, _| {
         vec![
+            "sudo snapper create --description 'before the upgrade' --userdata important=yes --print-number".into(),
             format!("sudo zypper modifyrepo --disable <every repository except openSUSE:* and {}>", a.str("keep_enabled")),
             "sudo zypper install suseconnect-ng snapper grub2-snapper-plugin".into(),
             "sudo cp /etc/os-release /etc/os-release.backup   # then write a SLES os-release and product".into(),
             "sudo rpm -e --nodeps openSUSE-release openSUSE-repos".into(),
             format!("sudo suseconnect -e {} -r REGCODE", sq(a.str("email"))),
             "sudo suseconnect -p PackageHub/$VERSION_ID/$(uname -m)".into(),
-            "sudo zypper dup --force-resolution --allow-vendor-change --download-in-advance".into(),
+            "sudo zypper dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet".into(),
+            "sudo zypper --no-refresh dup --force-resolution --allow-vendor-change".into(),
             "sudo zypper install branding-SLE-<major> grub2-branding-SLE wallpaper-branding-SLE-<major> plymouth-branding-SLE systemd-presets-branding-SLE"
                 .into(),
             "sudo reboot".into(),
@@ -124,11 +126,15 @@ fn migrate_shell(target: &str, keep: &str, d: &Distro) -> Vec<String> {
     let z = if d.transactional { "sudo transactional-update --continue run zypper" } else { "sudo zypper" };
     if target == "dup" {
         return vec![
-            if d.transactional { "sudo transactional-update --continue dup".into() } else { "sudo zypper dup".into() },
+            if d.transactional { "sudo transactional-update --continue dup".into() } else { "sudo zypper dup --download-in-advance".into() },
             "sudo reboot".into(),
         ];
     }
-    let mut cmds = vec![format!("{z} modifyrepo --disable <every repository except openSUSE:*, NVIDIA:* and {keep}>")];
+    let mut cmds = Vec::new();
+    if !d.transactional {
+        cmds.push("sudo snapper create --description 'before the upgrade' --userdata important=yes --print-number".into());
+    }
+    cmds.push(format!("{z} modifyrepo --disable <every repository except openSUSE:*, NVIDIA:* and {keep}>"));
     let (url, pkg, extra) = match target {
         "tumbleweed" => ("https://download.opensuse.org/tumbleweed/repo/oss/".to_owned(), "openSUSE-repos-Tumbleweed", ""),
         "slowroll" => ("https://download.opensuse.org/slowroll/repo/oss/".to_owned(), "openSUSE-repos-Slowroll", " --allow-downgrade"),
@@ -149,9 +155,10 @@ fn migrate_shell(target: &str, keep: &str, d: &Distro) -> Vec<String> {
                 format!("{z} install --repo tmp --from tmp --force-resolution {pkg}"),
                 format!("{z} removerepo tmp"),
                 format!("{z} refresh-services"),
-                format!("{z} --releasever {v} dup --force-resolution --allow-vendor-change --download-in-advance"),
+                format!("{z} --releasever {v} dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet"),
+                format!("{z} --releasever {v} --no-refresh dup --force-resolution --allow-vendor-change"),
                 format!(
-                    "{z} --releasever {v} install --force-resolution {}   # the target's release package",
+                    "{z} --releasever {v} --no-refresh install --force-resolution {}   # the target's release package",
                     if d.id == "opensuse-leap-micro" {
                         "<release package>"
                     } else if v.starts_with("15.") {
@@ -170,8 +177,9 @@ fn migrate_shell(target: &str, keep: &str, d: &Distro) -> Vec<String> {
         format!("{z} install --repo tmp --from tmp --force-resolution{extra} {pkg}"),
         format!("{z} removerepo tmp"),
         format!("{z} refresh-services"),
-        format!("{z} dup --force-resolution --allow-vendor-change --download-in-advance{extra}"),
-        format!("{z} install --force-resolution{extra} openSUSE-release   # the target's release package"),
+        format!("{z} dup --download-only --force-resolution --allow-vendor-change{extra}   # everything first, nothing changed yet"),
+        format!("{z} --no-refresh dup --force-resolution --allow-vendor-change{extra}"),
+        format!("{z} --no-refresh install --force-resolution{extra} openSUSE-release   # the target's release package"),
         "sudo reboot".into(),
     ]);
     cmds
@@ -493,7 +501,7 @@ async fn migrate(ctx: &Context, target: &str, keep: &[String]) -> Result<Output>
             if d.transactional {
                 zypper::transactional(ctx, &["dup"]).await?;
             } else {
-                zypper::change(ctx, &["dup"]).await?;
+                zypper::change(ctx, &["dup", "--download-in-advance"]).await?;
             }
             Ok(Output::Done(format!("{} is fully upgraded; reboot if the kernel or core libraries changed", d.pretty)))
         }

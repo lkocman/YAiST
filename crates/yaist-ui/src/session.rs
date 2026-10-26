@@ -9,9 +9,10 @@ use serde_json::{Map, Value};
 use tokio::sync::{mpsc, oneshot};
 use yaist_agent::{action_id, Agent, LlmClient, LlmConfig};
 use yaist_core::ask::{self, Question};
+use yaist_core::log;
 use yaist_core::{command, ActionSpec, Context, Registry, Risk};
 
-use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus};
+use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus, LOG_LINES};
 
 /// How many tool-calling rounds one request may take before we stop it.
 const MAX_ROUNDS: usize = 5;
@@ -26,6 +27,8 @@ pub enum Cmd {
     },
     Confirm(u64),
     Cancel(u64),
+    /// Propose a failed change again, with the same arguments.
+    Retry(u64),
     /// Reload a module's panel.
     Refresh(usize),
     /// Count available updates again.
@@ -129,6 +132,22 @@ impl Shared {
                     sh.push(Entry::Notice(format!("{}: {}", q.title, c.label)));
                 }
                 answer
+            })
+        })
+    }
+
+    /// Appends what a running change prints to its plan card.
+    fn logger(&self, id: u64) -> log::Logger {
+        let sh = self.clone();
+        Arc::new(move |line: String| {
+            sh.update(|s| {
+                if let Some(p) = s.plan_mut(id) {
+                    let log = Arc::make_mut(&mut p.log);
+                    if log.len() >= LOG_LINES {
+                        log.drain(..log.len() + 1 - LOG_LINES);
+                    }
+                    log.push(line);
+                }
             })
         })
     }
@@ -329,6 +348,7 @@ impl Jobs {
                 }
                 Cmd::Confirm(id) => self.execute(id).await,
                 Cmd::Cancel(id) => self.cancel(id),
+                Cmd::Retry(id) => self.retry(id),
                 Cmd::Refresh(i) => self.sh.refresh(i),
                 Cmd::CheckUpdates => self.sh.check_updates(),
                 Cmd::Answer { id, value } => self.sh.answer(id, value),
@@ -401,6 +421,12 @@ impl Jobs {
                 }
             };
         }
+        self.plan(spec, args, cmdline, shell, call_id);
+        None
+    }
+
+    /// Puts a change up for the user to confirm.
+    fn plan(&mut self, spec: ActionSpec, args: yaist_core::Args, command: String, shell: Vec<String>, call_id: Option<String>) {
         let id = self.next_id;
         self.next_id += 1;
         let from_agent = call_id.is_some();
@@ -408,9 +434,18 @@ impl Jobs {
             self.call_ids.insert(id, c);
         }
         self.pending.push_back(id);
-        self.sh.push(Entry::Plan(Plan { id, spec, args, command: cmdline, shell, executed: Vec::new(), status: PlanStatus::Pending, from_agent }));
+        self.sh.push(Entry::Plan(Plan { id, spec, args, command, shell, executed: Vec::new(), log: Arc::default(), status: PlanStatus::Pending, from_agent }));
         self.sh.focus_module(spec.module());
-        None
+    }
+
+    /// The same change once more, as a new card to confirm. The arguments are
+    /// the validated ones of the failed plan (secrets included, which a form
+    /// would show masked).
+    fn retry(&mut self, id: u64) {
+        let Some(p) = self.sh.update(|s| s.plan_mut(id).filter(|p| matches!(p.status, PlanStatus::Failed(_))).cloned()) else { return };
+        self.cancel_all();
+        self.sh.push(Entry::Command(p.command.clone()));
+        self.plan(p.spec, p.args, p.command, p.shell, None);
     }
 
     async fn agent_turn(&mut self, text: &str) {
@@ -473,7 +508,7 @@ impl Jobs {
         self.sh.busy(Some(format!("{}…", spec.title)));
         let run = self.sh.reg.run_logged(self.sh.ctx.clone(), spec.id, args);
         // Headless sessions have nobody to ask; the change takes its defaults.
-        let (result, executed) = if self.sh.panels { ask::asking(self.sh.asker(), run).await } else { run.await };
+        let (result, executed) = if self.sh.panels { log::logging(self.sh.logger(id), ask::asking(self.sh.asker(), run)).await } else { run.await };
         self.sh.busy(None);
         let (status, note) = match result {
             Ok(out) => {

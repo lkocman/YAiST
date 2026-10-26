@@ -28,6 +28,14 @@ enum Act {
     Submit(String),
     CheckUpdates,
     Answer(u64, String),
+    Retry(u64),
+}
+
+/// Proposes rolling back to snapshot `n` (a Dangerous plan, confirmed first).
+fn rollback(n: u32) -> Act {
+    let mut raw = Map::new();
+    raw.insert("number".into(), Value::String(n.to_string()));
+    Act::Propose("snapshots.rollback", raw)
 }
 
 /// What one frame draws, copied out of the shared state so the backend isn't
@@ -184,6 +192,7 @@ impl App {
                 Act::Form(f) => self.form = Some(f),
                 Act::Confirm(id) => self.session.send(Cmd::Confirm(id)),
                 Act::Cancel(id) => self.session.send(Cmd::Cancel(id)),
+                Act::Retry(id) => self.session.send(Cmd::Retry(id)),
                 Act::Submit(text) => self.session.send(Cmd::Submit(text)),
                 Act::CheckUpdates => self.session.send(Cmd::CheckUpdates),
                 Act::Answer(id, value) => self.session.send(Cmd::Answer { id, value }),
@@ -1307,9 +1316,29 @@ impl App {
                     ui.horizontal(|ui| {
                         ui.add(egui::Spinner::new().size(12.0).color(t.muted));
                         widgets::hud(ui, "running", t.muted);
+                        // The latest line says what is happening right now.
+                        if let Some(last) = p.log.last() {
+                            ui.add(egui::Label::new(RichText::new(last).family(theme::mono()).size(11.5).color(t.muted)).truncate());
+                        }
                     });
+                    if !p.log.is_empty() {
+                        ui.add_space(4.0);
+                        log_block(ui, p);
+                    }
                 }
-                PlanStatus::Done(m) => status_line(ui, "done", t.good, m, t.ink),
+                PlanStatus::Done(m) => {
+                    status_line(ui, "done", t.good, m, t.ink);
+                    // Second thoughts after an upgrade: back to how it was.
+                    if let Some(n) = yaist_ui::snapshot_before(p) {
+                        ui.add_space(6.0);
+                        if widgets::badge_button(ui, &format!("Roll back to snapshot {n}"), None)
+                            .on_hover_text("Proposes booting the snapshot taken before the upgrade; you confirm it first")
+                            .clicked()
+                        {
+                            self.acts.push(rollback(n));
+                        }
+                    }
+                }
                 PlanStatus::Failed(m) => {
                     status_line(ui, "failed", t.bad, m, t.bad);
                     // Only when the user wants to: quiet links, not a prompt. The
@@ -1345,8 +1374,31 @@ impl App {
                             ui.label(RichText::new(tip).size(12.0).italics().color(t.warn));
                         });
                     }
+                    // Ways forward: the same again (a mirror syncing, the network
+                    // back), or after an upgrade, the snapshot taken before it.
+                    ui.add_space(8.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        if widgets::button(ui, "Retry", Kind::Secondary, 0.0).on_hover_text("Proposes the same change again").clicked() {
+                            self.acts.push(Act::Retry(p.id));
+                        }
+                        if let Some(n) = yaist_ui::snapshot_before(p) {
+                            if widgets::button(ui, &format!("Roll back to snapshot {n}"), Kind::Secondary, 0.0)
+                                .on_hover_text("Proposes booting the snapshot taken before the upgrade; you confirm it first")
+                                .clicked()
+                            {
+                                self.acts.push(rollback(n));
+                            }
+                        }
+                    });
                 }
                 PlanStatus::Cancelled => status_line(ui, "cancelled", t.faint, "", t.faint),
+            }
+            if !p.log.is_empty() && p.status != PlanStatus::Running {
+                ui.add_space(6.0);
+                ui.collapsing(RichText::new(format!("OUTPUT · {} LINES", p.log.len())).family(theme::mono()).size(11.0).color(t.faint), |ui| {
+                    log_block(ui, p);
+                });
             }
             if !p.executed.is_empty() {
                 ui.add_space(6.0);
@@ -1502,6 +1554,28 @@ fn shell_block(ui: &mut Ui, cmds: &[String]) {
                 }
             });
         });
+    });
+}
+
+/// What a change's commands printed: scrollback that follows new lines
+/// while it runs (until scrolled up), only the visible rows laid out.
+fn log_block(ui: &mut Ui, p: &Plan) {
+    let t = Tokens::get(ui.ctx());
+    let font = FontId::new(11.5, theme::mono());
+    let row = ui.fonts_mut(|f| f.row_height(&font));
+    Frame::new().fill(t.sunken).inner_margin(Margin::symmetric(10, 7)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.spacing_mut().item_spacing.y = 0.0;
+        egui::ScrollArea::vertical()
+            .id_salt(("log", p.id))
+            .max_height(row * 12.0)
+            .auto_shrink([false, true])
+            .stick_to_bottom(true)
+            .show_rows(ui, row, p.log.len(), |ui, rows| {
+                for line in &p.log[rows] {
+                    ui.add(egui::Label::new(RichText::new(line).font(font.clone()).color(t.muted)).truncate());
+                }
+            });
     });
 }
 

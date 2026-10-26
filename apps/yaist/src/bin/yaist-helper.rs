@@ -190,6 +190,7 @@ fn migrate_rolling(target: &str, disable: &[String]) -> R {
         _ => return Err(format!("migrating from {} to {target} is not supported", os_release("NAME"))),
     };
     let tx = transactional();
+    snapshot_before(tx, &format!("before migrating to {target}"))?;
     disable_repos(tx, disable)?;
     zypper_step(tx, &["addrepo", "--refresh", "--", &url, TMP_REPO])?;
     let mut install = vec!["install", "--repo", TMP_REPO, "--force-resolution", "--from", TMP_REPO];
@@ -201,11 +202,13 @@ fn migrate_rolling(target: &str, disable: &[String]) -> R {
     let _ = zypper_step(tx, &["removerepo", "--", TMP_REPO]);
     installed?;
     zypper_step(tx, &["refresh-services"])?;
-    let mut dup = vec!["dup", "--force-resolution", "--allow-vendor-change", "--download-in-advance"];
+    let mut flags = vec!["--force-resolution", "--allow-vendor-change"];
     if downgrade {
-        dup.push("--allow-downgrade");
+        flags.push("--allow-downgrade");
     }
-    zypper_step(tx, &dup)?;
+    for args in dup_steps(&[], &flags) {
+        zypper_step(tx, &args)?;
+    }
     // Tumbleweed and Slowroll both use openSUSE-release (Slowroll its own build).
     ensure_release(tx, &[], "openSUSE-release", downgrade, "opensuse-tumbleweed")?;
     println!("==> migrated to {target}; reboot to finish");
@@ -250,6 +253,7 @@ fn migrate_sle(email: &str, regcode_file: &str, disable: &[String]) -> R {
     let (major, minor) = version.split_once('.').ok_or("unexpected VERSION_ID")?;
     let arch = std::env::consts::ARCH;
 
+    snapshot_before(false, "before migrating to SUSE Linux Enterprise")?;
     disable_repos(false, disable)?;
     zypper(&["install", "suseconnect-ng", "snapper", "grub2-snapper-plugin"])?;
     println!("==> backing up /etc/os-release as /etc/os-release.backup");
@@ -276,7 +280,9 @@ fn migrate_sle(email: &str, regcode_file: &str, disable: &[String]) -> R {
         return Err(format!("registration failed ({status}); /etc/os-release.backup holds the original"));
     }
     exec("/usr/bin/suseconnect", &["-p", &format!("PackageHub/{version}/{arch}")])?;
-    zypper(&["dup", "--force-resolution", "--allow-vendor-change", "--download-in-advance"])?;
+    for args in dup_steps(&[], &["--force-resolution", "--allow-vendor-change"]) {
+        zypper(&args)?;
+    }
     let _ = exec(
         "/usr/bin/rpm",
         &[
@@ -320,13 +326,54 @@ fn codecs_packman() -> R {
     exec("/usr/bin/opi", &["-n", "codecs"])
 }
 
+/// An important snapshot to roll back to, and its number in the log for the
+/// client's rollback button. Transactional systems keep the running snapshot
+/// as it is anyway; without snapper's root config there is nothing to take.
+fn snapshot_before(tx: bool, description: &str) -> R {
+    if tx {
+        return Ok(());
+    }
+    if !Path::new("/etc/snapper/configs/root").exists() {
+        println!("    (no snapper configuration for /: no snapshot to roll back to)");
+        return Ok(());
+    }
+    let args = ["-c", "root", "create", "--description", description, "--cleanup-algorithm", "number", "--print-number", "--userdata", "important=yes"];
+    println!("==> /usr/bin/snapper {}", args.join(" "));
+    let out = Command::new("/usr/bin/snapper")
+        .args(args)
+        .env_clear()
+        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("LC_ALL", "C.UTF-8")
+        .output()
+        .map_err(|e| format!("running snapper: {e}"))?;
+    let number = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    if !out.status.success() || number.parse::<u32>().is_err() {
+        return Err(format!("taking a snapshot failed: {}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    // yaist_ui::snapshot_before reads this line.
+    println!("==> snapshot {number} taken before the upgrade");
+    Ok(())
+}
+
+/// A distribution upgrade as two zypper runs: first everything is
+/// downloaded, while nothing has changed yet, so a network or mirror problem
+/// stops it cleanly; then the install from the package cache, without
+/// refreshing, as the upgrade restarts the network on the way (DNS gone for
+/// seconds) and running programs meet replaced libraries.
+fn dup_steps<'a>(global: &[&'a str], flags: &[&'a str]) -> [Vec<&'a str>; 2] {
+    let run = |extra: &[&'a str], verb: &[&'a str]| -> Vec<&'a str> { [global, extra, verb, flags].concat() };
+    [run(&[], &["dup", "--download-only"]), run(&["--no-refresh"], &["dup"])]
+}
+
 /// After the dup, make sure the target's release package (it defines which
 /// distribution this is: os-release, products.d) is the one installed, and
 /// check os-release agrees. --force-resolution replaces a conflicting one,
 /// e.g. Leap-release by openSUSE-release when moving to Tumbleweed.
 fn ensure_release(tx: bool, global: &[&str], pkg: &str, downgrade: bool, expect_id: &str) -> R {
+    // The dup has just refreshed the metadata. Refreshing again fails when the
+    // upgrade restarted the network a moment ago (DNS gone for a few seconds).
     let mut args: Vec<&str> = global.to_vec();
-    args.extend(["install", "--force-resolution"]);
+    args.extend(["--no-refresh", "install", "--force-resolution"]);
     if downgrade {
         args.push("--allow-downgrade");
     }
@@ -385,6 +432,7 @@ fn migrate_leap(flavour: &str, target: &str, disable: &[String]) -> R {
     };
 
     let tx = transactional();
+    snapshot_before(tx, &format!("before upgrading to {target}"))?;
     let step = |args: &[&str]| -> R {
         if tx {
             let mut full = vec!["--non-interactive", "--continue", "run", "/usr/bin/zypper", "--non-interactive"];
@@ -410,7 +458,9 @@ fn migrate_leap(flavour: &str, target: &str, disable: &[String]) -> R {
     installed?;
     step(&["refresh-services"])?;
     // --releasever is a global option: it goes before the command.
-    step(&["--releasever", target, "dup", "--force-resolution", "--allow-vendor-change", "--download-in-advance"])?;
+    for args in dup_steps(&["--releasever", target], &["--force-resolution", "--allow-vendor-change"]) {
+        step(&args)?;
+    }
     if flavour == "leap" {
         // Leap 16 is Leap-release; Leap 15 was openSUSE-release.
         let pkg = if major >= 16 { "Leap-release" } else { "openSUSE-release" };
@@ -418,4 +468,14 @@ fn migrate_leap(flavour: &str, target: &str, disable: &[String]) -> R {
     }
     println!("==> upgraded to {target}; reboot to finish");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn upgrade_downloads_first_then_installs_from_the_cache() {
+        let [download, install] = super::dup_steps(&["--releasever", "16.1"], &["--force-resolution", "--allow-vendor-change"]);
+        assert_eq!(download, ["--releasever", "16.1", "dup", "--download-only", "--force-resolution", "--allow-vendor-change"]);
+        assert_eq!(install, ["--releasever", "16.1", "--no-refresh", "dup", "--force-resolution", "--allow-vendor-change"]);
+    }
 }

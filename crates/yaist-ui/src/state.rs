@@ -35,6 +35,9 @@ pub enum PlanStatus {
     Cancelled,
 }
 
+/// How much of a running change's output a plan keeps.
+pub const LOG_LINES: usize = 2000;
+
 /// A proposed change, waiting for the user. Everything shown on the card is
 /// rendered from `spec` and `args` by our code, never from model-written text.
 #[derive(Clone, Debug)]
@@ -47,6 +50,9 @@ pub struct Plan {
     pub shell: Vec<String>,
     /// What YAiST actually ran (commands and D-Bus calls), once done.
     pub executed: Vec<String>,
+    /// What the commands printed, as they ran: the last [`LOG_LINES`] lines.
+    /// Shared, as clients copy the state every frame.
+    pub log: std::sync::Arc<Vec<String>>,
     pub status: PlanStatus,
     pub from_agent: bool,
 }
