@@ -147,6 +147,12 @@ pub fn snapshot_before(plan: &Plan) -> Option<u32> {
     plan.log.iter().find_map(|l| l.strip_prefix("==> snapshot ")?.strip_suffix(" taken before the upgrade")?.parse().ok())
 }
 
+/// How the helper judged an upgrade (`==> verdict: …`): unchanged,
+/// incomplete, migrated or migrated-with-warnings.
+pub fn verdict(plan: &Plan) -> Option<&str> {
+    plan.log.iter().rev().find_map(|l| l.strip_prefix("==> verdict: "))
+}
+
 /// The distribution's short name for "Report a … bug": Leap, Tumbleweed,
 /// Slowroll, MicroOS, Aeon, Kalpa, Leap Micro.
 pub fn distro_short(d: &yaist_core::Distro) -> &'static str {
@@ -322,5 +328,12 @@ mod tests {
         assert_eq!(snapshot_before(&plan("upgrade.migrate", &["==> /usr/bin/zypper …"])), None);
         // Only upgrades offer it; another action's output can't fake one.
         assert_eq!(snapshot_before(&plan("packages.install", &log)), None);
+    }
+
+    #[test]
+    fn verdict_from_the_helper_log() {
+        let log = ["==> warning: %post(foo-2-1.noarch) scriptlet failed, exit status 1", "==> verdict: migrated-with-warnings"];
+        assert_eq!(verdict(&plan("upgrade.migrate", &log)), Some("migrated-with-warnings"));
+        assert_eq!(verdict(&plan("upgrade.migrate", &["==> /usr/bin/zypper …"])), None);
     }
 }

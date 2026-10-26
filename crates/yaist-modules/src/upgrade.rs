@@ -511,28 +511,38 @@ async fn migrate(ctx: &Context, target: &str, keep: &[String]) -> Result<Output>
             let (aliases, _) = repos_to_disable(ctx, keep, ROLLING).await?;
             let mut args = vec!["migrate-rolling", target];
             args.extend(aliases.iter().map(String::as_str));
-            helper::run(ctx, &args).await?;
-            Ok(Output::Done(done(&format!("openSUSE {}", if target == "slowroll" { "Slowroll" } else { "Tumbleweed" }), &aliases)))
+            let out = helper::run(ctx, &args).await?;
+            Ok(Output::Done(done(&format!("openSUSE {}", if target == "slowroll" { "Slowroll" } else { "Tumbleweed" }), &aliases, &out)))
         }
         t => {
             let version = t.strip_prefix("leap:").ok_or_else(|| anyhow!("unknown target {t}"))?;
             let Some((key, flavour, line)) = leap_line(d) else {
                 bail!("upgrades from {} are not supported yet", d.id);
             };
-            if !leap_releases(key, &d.version).await?.iter().any(|(v, _)| v == version) {
+            // The running version again finishes an upgrade that stopped
+            // after the release package moved (Continue on a failed one).
+            if version != d.version && !leap_releases(key, &d.version).await?.iter().any(|(v, _)| v == version) {
                 bail!("{version} is not an available upgrade from {}", d.version);
             }
             let (aliases, _) = repos_to_disable(ctx, keep, version).await?;
             let mut args = vec!["migrate-leap", flavour, version];
             args.extend(aliases.iter().map(String::as_str));
-            helper::run(ctx, &args).await?;
-            Ok(Output::Done(done(&format!("{line} {version}"), &aliases)))
+            let out = helper::run(ctx, &args).await?;
+            Ok(Output::Done(done(&format!("{line} {version}"), &aliases, &out)))
         }
     }
 }
 
-fn done(what: &str, disabled: &[String]) -> String {
-    let mut msg = format!("Moved to {what}; reboot to finish");
+/// What to tell after a migration: where to, the helper's warnings (a
+/// failed package script doesn't undo an upgrade) and the repositories to
+/// look at.
+fn done(what: &str, disabled: &[String], helper_out: &str) -> String {
+    let warnings: Vec<&str> = helper_out.lines().filter_map(|l| l.strip_prefix("==> warning: ")).collect();
+    let mut msg = if warnings.is_empty() {
+        format!("Moved to {what}; reboot to finish")
+    } else {
+        format!("Moved to {what}, with warnings: {}. Reboot to finish, then check those", warnings.join("; "))
+    };
     if !disabled.is_empty() {
         msg.push_str(&format!(
             ". Disabled {}: enable them again (Repositories) once they work for {what}. Packages they provided may be orphaned now: zypper packages --orphaned",
@@ -562,8 +572,7 @@ async fn to_sle(ctx: &Context, email: &str, regcode: &str, keep: &[String]) -> R
     args.extend(aliases.iter().map(String::as_str));
     let result = helper::run(ctx, &args).await;
     let _ = std::fs::remove_file(&path);
-    result?;
-    Ok(Output::Done(done(&format!("SUSE Linux Enterprise Server {}", d.version), &aliases)))
+    Ok(Output::Done(done(&format!("SUSE Linux Enterprise Server {}", d.version), &aliases, &result?)))
 }
 
 #[cfg(test)]

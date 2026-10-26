@@ -1376,13 +1376,21 @@ impl App {
                     }
                     // Ways forward: the same again (a mirror syncing, the network
                     // back), or after an upgrade, the snapshot taken before it.
+                    // An upgrade that stopped part-way continues where it stopped;
+                    // one that changed nothing has nothing to roll back.
+                    let verdict = yaist_ui::verdict(p);
+                    let (label, tip) = if verdict == Some("incomplete") && p.spec.id == "upgrade.migrate" {
+                        ("Continue the upgrade", "Proposes running the upgrade again: it picks up where it stopped, with the downloads kept")
+                    } else {
+                        ("Retry", "Proposes the same change again")
+                    };
                     ui.add_space(8.0);
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
-                        if widgets::button(ui, "Retry", Kind::Secondary, 0.0).on_hover_text("Proposes the same change again").clicked() {
+                        if widgets::button(ui, label, Kind::Secondary, 0.0).on_hover_text(tip).clicked() {
                             self.acts.push(Act::Retry(p.id));
                         }
-                        if let Some(n) = yaist_ui::snapshot_before(p) {
+                        if let Some(n) = yaist_ui::snapshot_before(p).filter(|_| verdict != Some("unchanged")) {
                             if widgets::button(ui, &format!("Roll back to snapshot {n}"), Kind::Secondary, 0.0)
                                 .on_hover_text("Proposes booting the snapshot taken before the upgrade; you confirm it first")
                                 .clicked()
