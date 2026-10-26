@@ -14,6 +14,36 @@ use yaist_core::{command, ActionSpec, Context, Registry, Risk};
 
 use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus, LOG_LINES};
 
+/// Where the output of changes is kept, under $XDG_STATE_HOME (or
+/// ~/.local/state): one file per change, the newest [`LOGS_KEPT`].
+const LOG_DIR: &str = "yaist/logs";
+const LOGS_KEPT: usize = 100;
+
+/// A new log file for a change, readable only by the user; older ones beyond
+/// [`LOGS_KEPT`] are removed.
+fn open_log(spec: &ActionSpec, command: &str) -> Option<(String, std::fs::File)> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let base = std::env::var_os("XDG_STATE_HOME")
+        .filter(|d| !d.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::Path::new(&h).join(".local/state")))?;
+    let dir = base.join(LOG_DIR);
+    std::fs::create_dir_all(&dir).ok()?;
+    let mut old: Vec<_> = std::fs::read_dir(&dir).ok()?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "log")).collect();
+    if old.len() >= LOGS_KEPT {
+        // The names start with the time, so they sort oldest first.
+        old.sort();
+        for p in &old[..old.len() + 1 - LOGS_KEPT] {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    let path = dir.join(format!("{}-{}.log", yaist_core::date::local_stamp(), spec.id));
+    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&path).ok()?;
+    let _ = writeln!(f, "# {command}\n");
+    Some((path.display().to_string(), f))
+}
+
 /// How many tool-calling rounds one request may take before we stop it.
 const MAX_ROUNDS: usize = 5;
 
@@ -136,10 +166,15 @@ impl Shared {
         })
     }
 
-    /// Appends what a running change prints to its plan card.
-    fn logger(&self, id: u64) -> log::Logger {
+    /// Appends what a running change prints to its plan card, and to its
+    /// log file.
+    fn logger(&self, id: u64, file: Option<Arc<Mutex<std::fs::File>>>) -> log::Logger {
         let sh = self.clone();
         Arc::new(move |line: String| {
+            if let Some(f) = &file {
+                use std::io::Write;
+                let _ = writeln!(f.lock().unwrap_or_else(|e| e.into_inner()), "{line}");
+            }
             sh.update(|s| {
                 if let Some(p) = s.plan_mut(id) {
                     let log = Arc::make_mut(&mut p.log);
@@ -434,7 +469,7 @@ impl Jobs {
             self.call_ids.insert(id, c);
         }
         self.pending.push_back(id);
-        self.sh.push(Entry::Plan(Plan { id, spec, args, command, shell, executed: Vec::new(), log: Arc::default(), status: PlanStatus::Pending, from_agent }));
+        self.sh.push(Entry::Plan(Plan { id, spec, args, command, shell, executed: Vec::new(), log: Arc::default(), log_file: None, status: PlanStatus::Pending, from_agent }));
         self.sh.focus_module(spec.module());
     }
 
@@ -497,18 +532,38 @@ impl Jobs {
     }
 
     async fn execute(&mut self, id: u64) {
-        let Some((spec, args)) = self.sh.update(|s| {
+        let Some((spec, args, command)) = self.sh.update(|s| {
             let p = s.plan_mut(id).filter(|p| p.status == PlanStatus::Pending)?;
             p.status = PlanStatus::Running;
-            Some((p.spec, p.args.clone()))
+            Some((p.spec, p.args.clone(), p.command.clone()))
         }) else {
             return;
         };
         self.pending.retain(|&p| p != id);
         self.sh.busy(Some(format!("{}…", spec.title)));
+        let file = if self.sh.panels { open_log(&spec, &command) } else { None };
+        let (path, file) = file.map(|(p, f)| (Some(p), Some(Arc::new(Mutex::new(f))))).unwrap_or_default();
+        self.sh.update(|s| {
+            if let Some(p) = s.plan_mut(id) {
+                p.log_file = path;
+            }
+        });
         let run = self.sh.reg.run_logged(self.sh.ctx.clone(), spec.id, args);
         // Headless sessions have nobody to ask; the change takes its defaults.
-        let (result, executed) = if self.sh.panels { log::logging(self.sh.logger(id), ask::asking(self.sh.asker(), run)).await } else { run.await };
+        let (result, executed) =
+            if self.sh.panels { log::logging(self.sh.logger(id, file.clone()), ask::asking(self.sh.asker(), run)).await } else { run.await };
+        if let Some(f) = &file {
+            use std::io::Write;
+            let mut f = f.lock().unwrap_or_else(|e| e.into_inner());
+            let _ = writeln!(f, "\n# YAiST ran:");
+            for c in &executed {
+                let _ = writeln!(f, "#   {c}");
+            }
+            let _ = match &result {
+                Ok(out) => writeln!(f, "# done: {}", out.headline()),
+                Err(e) => writeln!(f, "# failed: {e:#}"),
+            };
+        }
         self.sh.busy(None);
         let (status, note) = match result {
             Ok(out) => {

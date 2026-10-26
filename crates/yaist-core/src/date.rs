@@ -27,6 +27,18 @@ pub fn today() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64 / 86_400).unwrap_or(0)
 }
 
+/// Now in local time as `2026-10-26_10-12-07`, for file names.
+pub fn local_stamp() -> String {
+    // SAFETY: time() with a null pointer only returns; localtime_r writes
+    // into the tm we own.
+    let now = unsafe { libc::time(std::ptr::null_mut()) };
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    if unsafe { libc::localtime_r(&now, &mut tm) }.is_null() {
+        return now.to_string();
+    }
+    format!("{:04}-{:02}-{:02}_{:02}-{:02}-{:02}", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec)
+}
+
 /// `2026-12-31` -> `31 December 2026`.
 pub fn pretty(s: &str) -> String {
     const MONTHS: [&str; 12] =

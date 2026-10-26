@@ -6,12 +6,13 @@ use anyhow::{anyhow, Result};
 use yaist_core::Context;
 
 /// `$YAIST_HELPER`, the installed locations, or next to the running binary
-/// (a development build).
+/// (a development build). /usr/local first, so scripts/dev-install-helper.sh
+/// wins over the package.
 fn path() -> Result<PathBuf> {
     if let Ok(p) = std::env::var("YAIST_HELPER") {
         return Ok(p.into());
     }
-    let installed = ["/usr/libexec/yaist/yaist-helper", "/usr/local/libexec/yaist/yaist-helper"].map(PathBuf::from);
+    let installed = ["/usr/local/libexec/yaist/yaist-helper", "/usr/libexec/yaist/yaist-helper"].map(PathBuf::from);
     let sibling = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join("yaist-helper")));
     installed.into_iter().chain(sibling).find(|p| p.is_file()).ok_or_else(|| anyhow!("yaist-helper not found (build it, or set YAIST_HELPER)"))
 }

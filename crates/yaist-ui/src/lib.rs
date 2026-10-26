@@ -167,6 +167,10 @@ pub fn report_suggestion(error: &str) -> (&'static str, &'static str) {
     yaist_modules::report::suggest(error)
 }
 
+/// How much of a failed change's output goes into a report; the link has
+/// room for little, and report.rs shortens the middle if needed.
+const REPORT_LOG_LINES: usize = 30;
+
 /// Arguments for a problem report about a failed plan, from what our code
 /// knows: what was asked, what YAiST ran and the error. The user chose where
 /// it goes and completes the rest on the report page.
@@ -178,6 +182,14 @@ pub fn report_args(plan: &Plan, target: &str) -> Option<serde_json::Map<String, 
         observation.push_str(&format!("\nYAiST ran:\n```\n{}\n```\n", plan.executed.join("\n")));
     }
     observation.push_str(&format!("\nIt failed with:\n```\n{error}\n```"));
+    // What the commands printed last says most; the whole of it is on disk.
+    if !plan.log.is_empty() {
+        let tail = &plan.log[plan.log.len().saturating_sub(REPORT_LOG_LINES)..];
+        observation.push_str(&format!("\n\nOutput (last {} lines):\n```\n{}\n```", tail.len(), tail.join("\n")));
+    }
+    if let Some(f) = &plan.log_file {
+        observation.push_str(&format!("\n\nThe full output is in {f} (please attach it)."));
+    }
     Some(
         [("target", target.to_owned()), ("title", format!("{} fails: {first}", plan.spec.title)), ("observation", observation)]
             .into_iter()
@@ -297,6 +309,7 @@ mod tests {
             shell: Vec::new(),
             executed: Vec::new(),
             log: std::sync::Arc::new(log.iter().map(|l| l.to_string()).collect()),
+            log_file: None,
             status: PlanStatus::Failed("x".into()),
             from_agent: false,
         }

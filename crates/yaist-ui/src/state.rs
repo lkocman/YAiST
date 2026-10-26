@@ -53,6 +53,8 @@ pub struct Plan {
     /// What the commands printed, as they ran: the last [`LOG_LINES`] lines.
     /// Shared, as clients copy the state every frame.
     pub log: std::sync::Arc<Vec<String>>,
+    /// The whole output on disk, for a bug report (see `session::LOG_DIR`).
+    pub log_file: Option<String>,
     pub status: PlanStatus,
     pub from_agent: bool,
 }
