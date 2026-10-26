@@ -1480,13 +1480,28 @@ fn shell_block(ui: &mut Ui, cmds: &[String]) {
     let t = Tokens::get(ui.ctx());
     Frame::new().fill(t.sunken).inner_margin(Margin::symmetric(10, 7)).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        for c in cmds {
-            let mut job = egui::text::LayoutJob::default();
-            let font = FontId::new(12.5, theme::mono());
-            job.append("$ ", 0.0, egui::TextFormat { font_id: font.clone(), color: t.accent, ..Default::default() });
-            job.append(c, 0.0, egui::TextFormat { font_id: font, color: t.ink_strong, ..Default::default() });
-            ui.label(job);
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            // "copied" stays for a moment after a click, per block.
+            let id = ui.scope_id().with(("copy", cmds));
+            let now = ui.input(|i| i.time);
+            let copied = ui.data(|d| d.get_temp::<f64>(id)).is_some_and(|at| now - at < 1.5);
+            if widgets::badge_button(ui, if copied { "copied" } else { "copy" }, None).on_hover_text("Copy the commands").clicked() {
+                ui.ctx().copy_text(cmds.join("\n"));
+                ui.data_mut(|d| d.insert_temp(id, now));
+            }
+            if copied {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            ui.vertical(|ui| {
+                for c in cmds {
+                    let mut job = egui::text::LayoutJob::default();
+                    let font = FontId::new(12.5, theme::mono());
+                    job.append("$ ", 0.0, egui::TextFormat { font_id: font.clone(), color: t.accent, ..Default::default() });
+                    job.append(c, 0.0, egui::TextFormat { font_id: font, color: t.ink_strong, ..Default::default() });
+                    ui.label(job);
+                }
+            });
+        });
     });
 }
 
