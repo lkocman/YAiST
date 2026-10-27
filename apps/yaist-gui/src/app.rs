@@ -82,9 +82,10 @@ struct Detail {
 }
 
 /// `YAIST_SCREENSHOT=file.ppm`: save one frame after `YAIST_SCREENSHOT_DELAY`
-/// seconds and quit. `YAIST_MODULE` (number) and `YAIST_DEMO` (a request)
-/// set the scene; `YAIST_DEMO_CONFIRM=1` confirms the plan the request
-/// raises, to show what follows, and `YAIST_DEMO_CLICK=x,y[,clicks[,seconds]]`
+/// seconds and quit. `YAIST_MODULE` (number), `YAIST_DEMO` (a request) and
+/// `YAIST_DEMO_SCENE` (made-up cards, see `yaist_ui::demo`) set the scene;
+/// `YAIST_DEMO_CONFIRM=1` confirms the plan the request raises, to show what
+/// follows, and `YAIST_DEMO_CLICK=x,y[,clicks[,seconds]]`
 /// clicks there (2 for a double-click) after two seconds, or as many as given.
 /// For docs and visual checks.
 struct Shot {
@@ -103,6 +104,25 @@ impl App {
         }
         if let Ok(demo) = std::env::var("YAIST_DEMO") {
             session.send(Cmd::Submit(demo));
+        }
+        if let Ok(name) = std::env::var("YAIST_DEMO_SCENE") {
+            let distro = session.state().distro.clone();
+            match yaist_ui::demo::scene(&name, &session.registry, &distro) {
+                Some(entries) => {
+                    let module = entries.iter().find_map(|e| match e {
+                        Entry::Plan(p) => Some(p.spec.module()),
+                        _ => None,
+                    });
+                    let mut s = session.state();
+                    s.conversation.extend(entries);
+                    let index = module.and_then(|m| s.module_index(m));
+                    drop(s);
+                    if let Some(i) = index {
+                        session.select(i);
+                    }
+                }
+                None => eprintln!("YAIST_DEMO_SCENE: no scene {name:?}; there are {}", yaist_ui::demo::SCENES.join(", ")),
+            }
         }
         let shot = std::env::var("YAIST_SCREENSHOT").ok().map(|path| Shot {
             path,

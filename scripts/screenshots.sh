@@ -5,9 +5,13 @@
 # one, raised by zypper. Needs a built target/debug/yaist-gui (e.g.
 # scripts/build-in-container.sh build), Wayland, ImageMagick; the local
 # model (scripts/llm-server.sh) is optional but shows up in the header.
+# Shots that are hard to reach for real (a failed change) are made-up
+# scenes, see crates/yaist-ui/src/demo.rs. Arguments pick the shots to take
+# (e.g. scripts/screenshots.sh report); none takes them all.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 NAME=yaist-screenshots
+WANTED=("$@")
 OUT=$(mktemp -d)
 trap 'podman rm -f "$NAME" >/dev/null 2>&1; rm -rf "$OUT"' EXIT
 
@@ -22,6 +26,9 @@ podman exec "$NAME" bash -c 'zypper -q refresh && zypper -q -n in --no-recommend
 shot() { # name delay [env...]
     local name=$1 delay=$2
     shift 2
+    if [ ${#WANTED[@]} -gt 0 ] && [[ ! " ${WANTED[*]} " =~ " $name " ]]; then
+        return
+    fi
     podman exec -e YAIST_SCREENSHOT="/shots/$name.ppm" -e YAIST_SCREENSHOT_DELAY="$delay" "$@" \
         "$NAME" timeout 120 /src/target/debug/yaist-gui
     magick "$OUT/$name.ppm" -strip -define png:compression-level=9 "docs/screenshots/$name.png"
@@ -32,3 +39,4 @@ mkdir -p docs/screenshots
 shot welcome 25
 shot package-conflict 30 -e YAIST_DEMO_CONFIRM=1 \
     -e "YAIST_DEMO=zypper in postfix sendmail exim pipewire-pulseaudio pulseaudio busybox-which which"
+shot report 8 -e YAIST_DEMO_SCENE=report-distro
