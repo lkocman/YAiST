@@ -1,5 +1,6 @@
-//! Made-up conversations for screenshots (`YAIST_DEMO_SCENE`): states that
-//! are hard to reach on purpose, like a change that failed. The cards are
+//! Made-up conversations for screenshots and demos (`/demo`, or
+//! `YAIST_DEMO_SCENE` at start): states that are hard to reach on purpose,
+//! like a change that failed. The cards are
 //! built from the real actions and arguments, only their outcome is
 //! invented. Nothing here runs.
 
@@ -10,20 +11,18 @@ use yaist_core::{command, Distro, Registry};
 
 use crate::state::{Entry, Plan, PlanStatus};
 
-/// The scenes, for the error message on a typo.
+/// The scenes, for `/demo` without one and the error message on a typo.
 pub const SCENES: &[&str] = &["report-distro", "report-yaist", "upgrade-incomplete"];
 
-/// Plan ids far above the session's own, so the two never meet.
-const FIRST_ID: u64 = 1_000_000;
-
-/// The entries of scene `name`, or None for an unknown one.
-pub fn scene(name: &str, reg: &Registry, d: &Distro) -> Option<Vec<Entry>> {
+/// The entries of scene `name`, or None for an unknown one. Its plans are
+/// numbered from `first_id`.
+pub fn scene(name: &str, reg: &Registry, d: &Distro, first_id: u64) -> Option<Vec<Entry>> {
     let plan = |id, action: &str, raw: &[(&str, &str)], executed: &[&str], log: &[&str], error: &str| {
         let spec = *reg.get(action).expect("demo action exists");
         let raw: Map<String, Value> = raw.iter().map(|(k, v)| ((*k).to_owned(), Value::String((*v).to_owned()))).collect();
         let args = spec.validate(&raw).expect("demo arguments are valid");
         Entry::Plan(Plan {
-            id: FIRST_ID + id,
+            id: first_id + id,
             spec,
             command: command::format(&spec, &args),
             shell: reg.shell_for(spec.id, &args, d),
@@ -42,7 +41,7 @@ pub fn scene(name: &str, reg: &Registry, d: &Distro) -> Option<Vec<Entry>> {
         "report-distro" => vec![
             Entry::User("install hplip so I can scan".into()),
             plan(
-                1,
+                0,
                 "packages.install",
                 &[("packages", "hplip")],
                 &[&zypper("install -- hplip")],
@@ -64,7 +63,7 @@ pub fn scene(name: &str, reg: &Registry, d: &Distro) -> Option<Vec<Entry>> {
         "report-yaist" => vec![
             Entry::Command("/packages update vim".into()),
             plan(
-                1,
+                0,
                 "packages.update",
                 &[("packages", "vim")],
                 &[&zypper("update -- vim")],
@@ -76,7 +75,7 @@ pub fn scene(name: &str, reg: &Registry, d: &Distro) -> Option<Vec<Entry>> {
         "upgrade-incomplete" => vec![
             Entry::User("upgrade to Leap 16.1".into()),
             plan(
-                1,
+                0,
                 "upgrade.migrate",
                 &[("target", "leap:16.1")],
                 &["/usr/bin/pkexec /usr/libexec/yaist/yaist-helper migrate leap:16.1 google-chrome"],
@@ -107,8 +106,8 @@ mod tests {
         let reg = yaist_modules::registry();
         let d = Distro { id: "opensuse-tumbleweed".into(), rolling: true, ..Default::default() };
         for s in SCENES {
-            assert!(scene(s, &reg, &d).is_some_and(|e| !e.is_empty()), "{s}");
+            assert!(scene(s, &reg, &d, 1).is_some_and(|e| !e.is_empty()), "{s}");
         }
-        assert!(scene("nope", &reg, &d).is_none());
+        assert!(scene("nope", &reg, &d, 1).is_none());
     }
 }

@@ -106,23 +106,7 @@ impl App {
             session.send(Cmd::Submit(demo));
         }
         if let Ok(name) = std::env::var("YAIST_DEMO_SCENE") {
-            let distro = session.state().distro.clone();
-            match yaist_ui::demo::scene(&name, &session.registry, &distro) {
-                Some(entries) => {
-                    let module = entries.iter().find_map(|e| match e {
-                        Entry::Plan(p) => Some(p.spec.module()),
-                        _ => None,
-                    });
-                    let mut s = session.state();
-                    s.conversation.extend(entries);
-                    let index = module.and_then(|m| s.module_index(m));
-                    drop(s);
-                    if let Some(i) = index {
-                        session.select(i);
-                    }
-                }
-                None => eprintln!("YAIST_DEMO_SCENE: no scene {name:?}; there are {}", yaist_ui::demo::SCENES.join(", ")),
-            }
+            session.send(Cmd::Demo(name));
         }
         let shot = std::env::var("YAIST_SCREENSHOT").ok().map(|path| Shot {
             path,

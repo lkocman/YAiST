@@ -68,6 +68,9 @@ pub enum Cmd {
         id: u64,
         value: String,
     },
+    /// Show a made-up scene (see [`crate::demo`]), as `/demo` does but
+    /// without the command line, for screenshots.
+    Demo(String),
 }
 
 #[derive(Clone)]
@@ -387,7 +390,35 @@ impl Jobs {
                 Cmd::Refresh(i) => self.sh.refresh(i),
                 Cmd::CheckUpdates => self.sh.check_updates(),
                 Cmd::Answer { id, value } => self.sh.answer(id, value),
+                Cmd::Demo(name) => {
+                    self.cancel_all();
+                    self.demo(&name);
+                }
             }
+        }
+    }
+
+    /// Adds the made-up scene `name`, or lists the scenes.
+    fn demo(&mut self, name: &str) {
+        let scenes = crate::demo::SCENES.join(", ");
+        if name.is_empty() {
+            self.sh.push(Entry::Notice(format!("Made-up scenes, for screenshots: {scenes}. Nothing in them runs.")));
+            return;
+        }
+        let Some(entries) = crate::demo::scene(name, &self.sh.reg, &self.sh.ctx.distro, self.next_id) else {
+            self.sh.push(Entry::Error(format!("no demo scene {name:?}; there are {scenes}")));
+            return;
+        };
+        let mut module = None;
+        for e in entries {
+            if let Entry::Plan(p) = &e {
+                self.next_id = self.next_id.max(p.id + 1);
+                module.get_or_insert(p.spec.module());
+            }
+            self.sh.push(e);
+        }
+        if let Some(m) = module {
+            self.sh.focus_module(m);
         }
     }
 
@@ -399,6 +430,12 @@ impl Jobs {
         if text == "/clear" {
             self.agent.clear();
             self.sh.update(|s| s.conversation.clear());
+            return;
+        }
+        // Not in /help: made-up cards for screenshots and demos.
+        if let Some(name) = text.strip_prefix("/demo").filter(|r| r.is_empty() || r.starts_with(' ')) {
+            self.sh.push(Entry::Command(text.to_owned()));
+            self.demo(name.trim());
             return;
         }
         // Familiar tool commands (zypper in fish, systemctl restart sshd) are
