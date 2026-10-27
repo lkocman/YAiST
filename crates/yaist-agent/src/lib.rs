@@ -21,6 +21,10 @@ pub struct Agent {
     system: Value,
     tools: Vec<Value>,
     history: Vec<Value>,
+    /// What happened since the last user message (a change finished), told
+    /// with the next one: a message of its own could land between a tool
+    /// call and its result.
+    notes: Vec<String>,
 }
 
 /// LLM tool names allow only `[a-zA-Z0-9_-]`, so `firewall.open_port`
@@ -48,11 +52,16 @@ impl Agent {
                 })
             })
             .collect();
-        Self { llm, system: json!({ "role": "system", "content": system_prompt(distro) }), tools, history: Vec::new() }
+        Self { llm, system: json!({ "role": "system", "content": system_prompt(distro) }), tools, history: Vec::new(), notes: Vec::new() }
     }
 
     pub fn push_user(&mut self, text: &str) {
-        self.history.push(json!({ "role": "user", "content": text }));
+        let content = if self.notes.is_empty() {
+            text.to_owned()
+        } else {
+            format!("(Meanwhile: {})\n\n{text}", std::mem::take(&mut self.notes).join(" "))
+        };
+        self.history.push(json!({ "role": "user", "content": content }));
         self.trim();
     }
 
@@ -64,6 +73,11 @@ impl Agent {
             content.push_str("\n… (truncated)");
         }
         self.history.push(json!({ "role": "tool", "tool_call_id": call_id, "content": content }));
+    }
+
+    /// Tells the model, with the user's next message, what happened.
+    pub fn note(&mut self, text: &str) {
+        self.notes.push(text.to_owned());
     }
 
     /// Asks the model for its next step: an answer, tool calls, or both.
@@ -95,6 +109,7 @@ impl Agent {
 
     pub fn clear(&mut self) {
         self.history.clear();
+        self.notes.clear();
     }
 
     /// Drops the oldest turns, always cutting at a user message so tool calls

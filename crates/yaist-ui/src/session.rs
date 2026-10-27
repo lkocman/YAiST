@@ -86,6 +86,9 @@ struct Shared {
     /// Questions waiting for an answer, by id.
     questions: Arc<Mutex<HashMap<u64, oneshot::Sender<String>>>>,
     next_question: Arc<std::sync::atomic::AtomicU64>,
+    /// What the conversation is doing ("Thinking…") and which change runs;
+    /// the state shows the first, else the second.
+    activity: Arc<Mutex<(Option<String>, Option<String>)>>,
 }
 
 impl Shared {
@@ -99,8 +102,23 @@ impl Shared {
         self.update(|s| s.conversation.push(entry));
     }
 
+    /// What the conversation is doing, e.g. "Thinking…".
     fn busy(&self, what: Option<String>) {
-        self.update(|s| s.busy = what);
+        self.set_activity(|a| a.0 = what);
+    }
+
+    /// The change running alongside the conversation.
+    fn running(&self, what: Option<String>) {
+        self.set_activity(|a| a.1 = what);
+    }
+
+    fn set_activity(&self, f: impl FnOnce(&mut (Option<String>, Option<String>))) {
+        let shown = {
+            let mut a = self.activity.lock().unwrap_or_else(|e| e.into_inner());
+            f(&mut a);
+            a.0.clone().or_else(|| a.1.clone())
+        };
+        self.update(|s| s.busy = shown);
     }
 
     fn refresh(&self, index: usize) {
@@ -270,6 +288,7 @@ impl Session {
             update_check: Default::default(),
             questions: Default::default(),
             next_question: Arc::new(1.into()),
+            activity: Default::default(),
         };
         let (tx, mut rx) = mpsc::unbounded_channel::<Cmd>();
         let (job_tx, job_rx) = mpsc::unbounded_channel::<Cmd>();
@@ -293,7 +312,9 @@ impl Session {
 
         let agent = Agent::new(&reg, &ctx.distro, llm.clone());
         let warm = agent.warmer();
-        runtime.spawn(Jobs { sh: sh.clone(), agent, pending: VecDeque::new(), call_ids: HashMap::new(), next_id: 1 }.run(job_rx));
+        let (done_tx, done_rx) = mpsc::unbounded_channel();
+        let jobs = Jobs { sh: sh.clone(), agent, pending: VecDeque::new(), call_ids: HashMap::new(), next_id: 1, running: None, done_tx };
+        runtime.spawn(jobs.run(job_rx, done_rx));
         runtime.spawn(watch_llm(sh.clone(), llm, warm));
         // Updates: now, then every 30 minutes.
         let updates_sh = sh.clone();
@@ -365,11 +386,35 @@ struct Jobs {
     /// Plan → the agent's tool call it answers.
     call_ids: HashMap<u64, String>,
     next_id: u64,
+    /// The change running in the background, if any: one at a time, as
+    /// zypper and friends take a lock anyway.
+    running: Option<(u64, ActionSpec)>,
+    done_tx: mpsc::UnboundedSender<Finished>,
+}
+
+/// A change that ran to its end, back from its task.
+struct Finished {
+    id: u64,
+    spec: ActionSpec,
+    result: anyhow::Result<yaist_core::Output>,
+    executed: Vec<String>,
 }
 
 impl Jobs {
-    async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Cmd>) {
-        while let Some(cmd) = rx.recv().await {
+    /// Commands in order, except that a confirmed change runs in a task of
+    /// its own: the conversation goes on while an upgrade takes its time.
+    async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Cmd>, mut done_rx: mpsc::UnboundedReceiver<Finished>) {
+        loop {
+            let cmd = tokio::select! {
+                Some(f) = done_rx.recv() => {
+                    self.finish(f);
+                    continue;
+                }
+                cmd = rx.recv() => match cmd {
+                    Some(c) => c,
+                    None => break,
+                },
+            };
             match cmd {
                 Cmd::Submit(text) => self.submit(text.trim()).await,
                 Cmd::Propose { action, raw } => {
@@ -384,7 +429,7 @@ impl Jobs {
                         None => self.sh.push(Entry::Error(format!("unknown action {action}"))),
                     }
                 }
-                Cmd::Confirm(id) => self.execute(id).await,
+                Cmd::Confirm(id) => self.execute(id),
                 Cmd::Cancel(id) => self.cancel(id),
                 Cmd::Retry(id) => self.retry(id),
                 Cmd::Refresh(i) => self.sh.refresh(i),
@@ -568,7 +613,15 @@ impl Jobs {
         self.sh.busy(None);
     }
 
-    async fn execute(&mut self, id: u64) {
+    /// Starts a confirmed change in the background; [`Self::finish`] takes
+    /// its outcome.
+    fn execute(&mut self, id: u64) {
+        if let Some((_, running)) = self.running {
+            if self.sh.update(|s| s.plan_mut(id).is_some_and(|p| p.status == PlanStatus::Pending)) {
+                self.sh.push(Entry::Notice(format!("{} is still running; confirm this once it is done.", running.title)));
+            }
+            return;
+        }
         let Some((spec, args, command)) = self.sh.update(|s| {
             let p = s.plan_mut(id).filter(|p| p.status == PlanStatus::Pending)?;
             p.status = PlanStatus::Running;
@@ -577,7 +630,13 @@ impl Jobs {
             return;
         };
         self.pending.retain(|&p| p != id);
-        self.sh.busy(Some(format!("{}…", spec.title)));
+        // The model's tool call is answered now, so the conversation can go
+        // on; the outcome reaches it as a note (see finish).
+        if let Some(call) = self.call_ids.remove(&id) {
+            self.agent.push_tool_result(&call, "The user confirmed it; it is running now. You will be told how it went.");
+        }
+        self.running = Some((id, spec));
+        self.sh.running(Some(format!("{}…", spec.title)));
         let file = if self.sh.panels { open_log(&spec, &command) } else { None };
         let (path, file) = file.map(|(p, f)| (Some(p), Some(Arc::new(Mutex::new(f))))).unwrap_or_default();
         self.sh.update(|s| {
@@ -585,23 +644,32 @@ impl Jobs {
                 p.log_file = path;
             }
         });
-        let run = self.sh.reg.run_logged(self.sh.ctx.clone(), spec.id, args);
-        // Headless sessions have nobody to ask; the change takes its defaults.
-        let (result, executed) =
-            if self.sh.panels { log::logging(self.sh.logger(id, file.clone()), ask::asking(self.sh.asker(), run)).await } else { run.await };
-        if let Some(f) = &file {
-            use std::io::Write;
-            let mut f = f.lock().unwrap_or_else(|e| e.into_inner());
-            let _ = writeln!(f, "\n# YAiST ran:");
-            for c in &executed {
-                let _ = writeln!(f, "#   {c}");
+        let (sh, done) = (self.sh.clone(), self.done_tx.clone());
+        tokio::spawn(async move {
+            let run = sh.reg.run_logged(sh.ctx.clone(), spec.id, args);
+            // Headless sessions have nobody to ask; the change takes its defaults.
+            let (result, executed) =
+                if sh.panels { log::logging(sh.logger(id, file.clone()), ask::asking(sh.asker(), run)).await } else { run.await };
+            if let Some(f) = &file {
+                use std::io::Write;
+                let mut f = f.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = writeln!(f, "\n# YAiST ran:");
+                for c in &executed {
+                    let _ = writeln!(f, "#   {c}");
+                }
+                let _ = match &result {
+                    Ok(out) => writeln!(f, "# done: {}", out.headline()),
+                    Err(e) => writeln!(f, "# failed: {e:#}"),
+                };
             }
-            let _ = match &result {
-                Ok(out) => writeln!(f, "# done: {}", out.headline()),
-                Err(e) => writeln!(f, "# failed: {e:#}"),
-            };
-        }
-        self.sh.busy(None);
+            let _ = done.send(Finished { id, spec, result, executed });
+        });
+    }
+
+    fn finish(&mut self, f: Finished) {
+        let Finished { id, spec, result, executed } = f;
+        self.running = None;
+        self.sh.running(None);
         let (status, note) = match result {
             Ok(out) => {
                 let line = out.headline();
@@ -609,14 +677,14 @@ impl Jobs {
             }
             Err(e) => (PlanStatus::Failed(format!("{e:#}")), format!("Failed: {e:#}")),
         };
-        self.sh.update(|s| {
-            if let Some(p) = s.plan_mut(id) {
-                p.status = status;
-                p.executed = executed;
-            }
+        let from_agent = self.sh.update(|s| {
+            let p = s.plan_mut(id)?;
+            p.status = status;
+            p.executed = executed;
+            Some(p.from_agent)
         });
-        if let Some(call) = self.call_ids.remove(&id) {
-            self.agent.push_tool_result(&call, &note);
+        if from_agent == Some(true) {
+            self.agent.note(&format!("the change you proposed, {} ({}), finished. {note}", spec.title, spec.id));
         }
         self.sh.focus_module(spec.module());
         if matches!(spec.module(), "packages" | "repos" | "upgrade" | "snapshots") {
@@ -645,5 +713,104 @@ impl Jobs {
         for id in std::mem::take(&mut self.pending) {
             self.cancel(id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use yaist_core::Output;
+
+    const SLOW: ActionSpec = ActionSpec { id: "test.slow", title: "Slow change", description: "", risk: Risk::Change, params: &[] };
+    const READ: ActionSpec = ActionSpec { id: "test.read", title: "Quick read", description: "", risk: Risk::Read, params: &[] };
+
+    /// Jobs over a registry with a change that runs until `release` fires.
+    fn jobs() -> (mpsc::UnboundedSender<Cmd>, Arc<Mutex<State>>, Arc<tokio::sync::Notify>) {
+        let release = Arc::new(tokio::sync::Notify::new());
+        let mut reg = Registry::default();
+        let r = release.clone();
+        reg.action(SLOW, move |_, _| {
+            let r = r.clone();
+            async move {
+                r.notified().await;
+                Ok(Output::Done("slow done".into()))
+            }
+        });
+        reg.action(READ, |_, _| async { Ok(Output::Text("read result".into())) });
+        let ctx = Context::new();
+        let state = Arc::new(Mutex::new(State {
+            distro: ctx.distro.clone(),
+            modules: Vec::new(),
+            selected: 0,
+            conversation: Vec::new(),
+            busy: None,
+            llm: LlmStatus::Offline,
+            llm_url: String::new(),
+            updates: UpdateStatus::Checking,
+            question: None,
+        }));
+        let reg = Arc::new(reg);
+        let sh = Shared {
+            reg: reg.clone(),
+            ctx: Arc::new(ctx),
+            state: state.clone(),
+            notify: Arc::new(|| {}),
+            panels: false,
+            update_check: Default::default(),
+            questions: Default::default(),
+            next_question: Arc::new(1.into()),
+            activity: Default::default(),
+        };
+        let agent = Agent::new(&reg, &sh.ctx.distro, LlmClient::new(LlmConfig::from_env()));
+        let (tx, rx) = mpsc::unbounded_channel();
+        let (done_tx, done_rx) = mpsc::unbounded_channel();
+        let jobs = Jobs { sh, agent, pending: VecDeque::new(), call_ids: HashMap::new(), next_id: 1, running: None, done_tx };
+        tokio::spawn(jobs.run(rx, done_rx));
+        (tx, state, release)
+    }
+
+    async fn until(state: &Arc<Mutex<State>>, what: &str, f: impl Fn(&State) -> bool) {
+        for _ in 0..200 {
+            if f(&state.lock().unwrap()) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for {what}");
+    }
+
+    fn status(s: &State, id: u64) -> Option<PlanStatus> {
+        s.conversation.iter().find_map(|e| match e {
+            Entry::Plan(p) if p.id == id => Some(p.status.clone()),
+            _ => None,
+        })
+    }
+
+    #[tokio::test]
+    async fn the_conversation_goes_on_while_a_change_runs() {
+        let (tx, state, release) = jobs();
+        let propose = |action| Cmd::Propose { action, raw: Map::new() };
+        tx.send(propose(SLOW.id)).unwrap();
+        tx.send(Cmd::Confirm(1)).unwrap();
+        until(&state, "the change to run", |s| status(s, 1) == Some(PlanStatus::Running)).await;
+        assert_eq!(state.lock().unwrap().busy.as_deref(), Some("Slow change…"));
+
+        // A read runs right away, and a second change waits its turn.
+        tx.send(propose(READ.id)).unwrap();
+        until(&state, "the read", |s| s.conversation.iter().any(|e| matches!(e, Entry::Result { title, .. } if title == "Quick read"))).await;
+        tx.send(propose(SLOW.id)).unwrap();
+        tx.send(Cmd::Confirm(2)).unwrap();
+        until(&state, "the notice", |s| s.conversation.iter().any(|e| matches!(e, Entry::Notice(n) if n.contains("still running")))).await;
+        assert_eq!(status(&state.lock().unwrap(), 2), Some(PlanStatus::Pending));
+        assert_eq!(status(&state.lock().unwrap(), 1), Some(PlanStatus::Running));
+
+        release.notify_one();
+        until(&state, "the change to finish", |s| status(s, 1) == Some(PlanStatus::Done("slow done".into()))).await;
+        assert_eq!(state.lock().unwrap().busy, None);
+        // Now the second one may run.
+        tx.send(Cmd::Confirm(2)).unwrap();
+        until(&state, "the second change to run", |s| status(s, 2) == Some(PlanStatus::Running)).await;
+        release.notify_one();
+        until(&state, "the second change to finish", |s| matches!(status(s, 2), Some(PlanStatus::Done(_)))).await;
     }
 }
