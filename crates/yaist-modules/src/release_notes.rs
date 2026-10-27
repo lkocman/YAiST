@@ -3,11 +3,11 @@
 //! and packages, and links to read the rest.
 //!
 //! Our code picks the entries; a model may summarise them, never choose
-//! them. Leap's own notes come first (doc.opensuse.org); until they are
-//! published, the notes of the SUSE Linux Enterprise Server release Leap is
-//! built on, without the entries only enterprise customers care about.
-//! Pages are kept in ~/.cache/yaist/release-notes, so they can be read
-//! offline afterwards. `YAIST_RELEASE_NOTES=file.html` reads a local copy
+//! them. Leap's own notes come first: online (doc.opensuse.org, kept in
+//! ~/.cache/yaist/release-notes) or installed (release-notes-openSUSE-Leap-
+//! <version>, which has them before they are online). Without either, the
+//! notes of the SUSE Linux Enterprise Server release Leap is built on stand
+//! in. For Leap, entries only enterprise customers care about are left out. `YAIST_RELEASE_NOTES=file.html` reads a local copy
 //! instead, for testing before the notes are out.
 
 use std::collections::HashSet;
@@ -94,13 +94,17 @@ impl Doc {
         }
     }
 
-    /// The installed release-notes package, when it is for this release:
-    /// on Leap 16.0 it still carries Tumbleweed's notes from 2018.
-    fn package(&self) -> Option<String> {
+    /// The installed notes for this release: release-notes-openSUSE-Leap-16.1
+    /// and the like (from github.com/SUSE/release-notes), else the older
+    /// single release-notes-openSUSE if it is for this release (the one in
+    /// Leap 16.0 carried Tumbleweed's notes from 2018).
+    fn package(&self) -> Option<(String, String)> {
         let Doc::Leap(v) = self else { return None };
-        let path = "/usr/share/doc/release-notes/openSUSE/RELEASE-NOTES.en.html";
-        let html = std::fs::read_to_string(path).ok()?;
-        html.contains(&format!("Leap {v}")).then_some(path.to_owned())
+        let dir = "/usr/share/doc/release-notes/openSUSE";
+        [format!("{dir}/Leap-{v}/RELEASE-NOTES.en.html"), format!("{dir}/RELEASE-NOTES.en.html")].into_iter().find_map(|path| {
+            let html = std::fs::read_to_string(&path).ok()?;
+            html.contains(&format!("Leap {v}")).then_some((html, path))
+        })
     }
 }
 
@@ -128,7 +132,7 @@ pub struct NoteEntry {
     pub title: String,
     /// Why it concerns this system, e.g. "you have an NVIDIA graphics card".
     pub why: String,
-    /// The entry itself, online.
+    /// The entry itself, online or in the copy on this machine.
     pub link: String,
     /// Its first lines, for a summary.
     pub excerpt: String,
@@ -164,10 +168,10 @@ pub async fn load(ctx: &Context, target: &Target) -> Notes {
     let override_path = std::env::var("YAIST_RELEASE_NOTES").ok().filter(|p| !p.is_empty());
     for (i, doc) in docs.iter().enumerate() {
         let found = match (&override_path, i) {
-            (Some(p), 0) => std::fs::read_to_string(p).ok().map(|h| (h, Some(p.clone()))),
+            (Some(p), 0) => std::fs::read_to_string(p).ok().map(|html| Page { html, local: Some(p.clone()), from_server: false }),
             _ => page(doc).await,
         };
-        let Some((html, local)) = found else { continue };
+        let Some(Page { html, local, from_server }) = found else { continue };
         let sections = parse(&html);
         if sections.is_empty() {
             continue;
@@ -176,13 +180,20 @@ pub async fn load(ctx: &Context, target: &Target) -> Notes {
         let caveat = other_product.then(|| {
             format!("{release}'s own notes aren't published yet; these are from {}, which {release} is built on.", doc.name().trim_end_matches(" release notes"))
         });
+        // Notes that came only from this machine may not be online yet:
+        // entries link into the local copy, "online" to the list of notes.
+        let (base, online) = match (&local, from_server) {
+            (Some(path), false) => (format!("file://{path}"), ONLINE_INDEX.to_owned()),
+            _ => (doc.url(), doc.url()),
+        };
         return Notes {
-            entries: relevant(&sections, &facts, other_product, &doc.url()),
+            // Leap's notes carry SLE's chapters too.
+            entries: relevant(&sections, &facts, matches!(target, Target::Leap(_)), &base),
             total: sections.len(),
             release,
             source: doc.name(),
             caveat,
-            online: doc.url(),
+            online,
             local,
         };
     }
@@ -198,11 +209,23 @@ pub async fn load(ctx: &Context, target: &Target) -> Notes {
     }
 }
 
-/// The page and the local copy it was read from: a fresh cached copy, else
-/// the server (kept in the cache), else an old cached copy or the package.
-async fn page(doc: &Doc) -> Option<(String, Option<String>)> {
+/// Where all release notes are listed online.
+const ONLINE_INDEX: &str = "https://doc.opensuse.org/release-notes/";
+
+/// A release-notes page as read.
+struct Page {
+    html: String,
+    /// The copy on this machine: the cache, the package or a test file.
+    local: Option<String>,
+    /// It is (or was) on the server, so links to it work.
+    from_server: bool,
+}
+
+/// A fresh cached copy, else the server (kept in the cache), else the
+/// installed package, else an old cached copy.
+async fn page(doc: &Doc) -> Option<Page> {
     let cached = cache_dir().map(|d| d.join(doc.cache_name()));
-    let read = |p: &PathBuf| std::fs::read_to_string(p).ok().map(|h| (h, Some(p.display().to_string())));
+    let read = |p: &PathBuf| std::fs::read_to_string(p).ok().map(|html| Page { html, local: Some(p.display().to_string()), from_server: true });
     if let Some(p) = &cached {
         let fresh = std::fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age < FRESH);
         if fresh {
@@ -217,9 +240,12 @@ async fn page(doc: &Doc) -> Option<(String, Option<String>)> {
             std::fs::write(p, &html).ok()?;
             Some(p.display().to_string())
         });
-        return Some((html, local));
+        return Some(Page { html, local, from_server: true });
     }
-    cached.as_ref().and_then(read).or_else(|| doc.package().and_then(|p| std::fs::read_to_string(&p).ok().map(|h| (h, Some(p)))))
+    if let Some((html, path)) = doc.package() {
+        return Some(Page { html, local: Some(path), from_server: false });
+    }
+    cached.as_ref().and_then(read)
 }
 
 async fn fetch(url: &str) -> Option<String> {
@@ -429,8 +455,8 @@ fn about_missing_package(title: &str, facts: &Facts) -> bool {
     })
 }
 
-/// Entries only enterprise customers need, skipped when SLES notes stand in
-/// for Leap's.
+/// Entries only enterprise customers need, skipped for Leap: in the SLES
+/// notes standing in for Leap's, and in the SLE chapters of Leap's own.
 const ENTERPRISE: &[&str] = &[
     "sap",
     "rmt",
@@ -467,7 +493,7 @@ fn has(text: &str, phrase: &str) -> bool {
 
 /// The entries that concern this system, the most important first: about
 /// upgrading, then hardware, desktop and installed packages.
-fn relevant(sections: &[Section], facts: &Facts, enterprise_source: bool, page: &str) -> Vec<NoteEntry> {
+fn relevant(sections: &[Section], facts: &Facts, for_leap: bool, page: &str) -> Vec<NoteEntry> {
     let desktop_names: &[(&str, &[&str], &str)] = &[
         ("kde", &["kde", "plasma"], "KDE Plasma"),
         ("gnome", &["gnome"], "GNOME"),
@@ -492,7 +518,7 @@ fn relevant(sections: &[Section], facts: &Facts, enterprise_source: bool, page: 
         let parents = s.parents.join(" / ").to_lowercase();
         let in_title = |w: &str| has(&title, w) || has(&parents, w);
         let other_arch = ARCHES.iter().any(|(arch, words)| *arch != facts.arch && words.iter().any(|w| in_title(w)));
-        if other_arch || (enterprise_source && ENTERPRISE.iter().any(|w| in_title(w))) || about_missing_package(&title, facts) {
+        if other_arch || (for_leap && ENTERPRISE.iter().any(|w| in_title(w))) || about_missing_package(&title, facts) {
             continue;
         }
         let own_arch = ARCHES.iter().any(|(arch, words)| *arch == facts.arch && words.iter().any(|w| in_title(w)));
@@ -641,7 +667,7 @@ mod tests {
     }
 
     #[test]
-    fn sles_notes_for_leap_skip_enterprise_entries() {
+    fn leap_skips_enterprise_entries() {
         let e = relevant(&parse(SLES), &facts(), true, "https://example.org/");
         let got: Vec<&str> = e.iter().map(|e| e.title.as_str()).collect();
         assert_eq!(got, ["PHP updated to version 8.5"]);
