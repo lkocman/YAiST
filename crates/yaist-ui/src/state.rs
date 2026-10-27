@@ -83,6 +83,9 @@ pub enum Entry {
     },
     Error(String),
     Notice(String),
+    /// What's new in a release for this system: entries picked by our code,
+    /// with links; a summary may follow as an Assistant entry.
+    Notes(yaist_modules::release_notes::Notes),
 }
 
 /// A question from a running change (a package conflict, a license),

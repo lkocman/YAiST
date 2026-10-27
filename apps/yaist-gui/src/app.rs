@@ -3,6 +3,7 @@ use std::time::Duration;
 use egui::{vec2, Color32, CornerRadius, FontId, Frame, Margin, RichText, Stroke, Ui};
 use serde_json::{Map, Value};
 use yaist_core::{Output, ParamKind, Risk, Table};
+use yaist_ui::release_notes;
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{
     reboot_notice, row_action_is_direct, row_args, tone_of, update_summary, Asked, Cmd, Entry, Form, LlmStatus, ModuleView, Panel, Plan, PlanStatus,
@@ -29,6 +30,7 @@ enum Act {
     CheckUpdates,
     Answer(u64, String),
     Retry(u64),
+    WhatsNew(release_notes::Target),
 }
 
 /// Proposes rolling back to snapshot `n` (a Dangerous plan, confirmed first).
@@ -70,6 +72,8 @@ pub struct App {
     demo_click: Option<(egui::Pos2, usize, std::time::Instant)>,
     /// The choice picked in the open question: (question id, choice index).
     choice: (u64, usize),
+    /// Running upgrades whose "what's new" offer was declined.
+    no_notes: std::collections::HashSet<u64>,
     /// For the input field's pulse at start.
     opened: std::time::Instant,
 }
@@ -134,6 +138,7 @@ impl App {
             confirm_demo,
             demo_click,
             choice: (0, 0),
+            no_notes: Default::default(),
             opened: std::time::Instant::now(),
         }
     }
@@ -200,6 +205,7 @@ impl App {
                 Act::Submit(text) => self.session.send(Cmd::Submit(text)),
                 Act::CheckUpdates => self.session.send(Cmd::CheckUpdates),
                 Act::Answer(id, value) => self.session.send(Cmd::Answer { id, value }),
+                Act::WhatsNew(target) => self.session.send(Cmd::WhatsNew(target)),
             }
         }
     }
@@ -1240,6 +1246,7 @@ impl App {
                 ui.label(RichText::new(text).size(14.0).color(t.ink));
             }
             Entry::Plan(p) => self.plan_card(ui, p),
+            Entry::Notes(n) => self.notes_card(ui, n),
             Entry::Result { title, shell, output } => {
                 widgets::hud(ui, title, t.faint);
                 shell_block(ui, shell);
@@ -1329,6 +1336,7 @@ impl App {
                         ui.add_space(4.0);
                         log_block(ui, p);
                     }
+                    self.notes_offer(ui, p);
                 }
                 PlanStatus::Done(m) => {
                     status_line(ui, "done", t.good, m, t.ink);
@@ -1420,6 +1428,82 @@ impl App {
                     }
                 });
             }
+        });
+    }
+
+    /// While an upgrade to a new release runs: what's new in it, if the user
+    /// wants to hear it. Once, and quietly, like the report links.
+    fn notes_offer(&mut self, ui: &mut Ui, p: &Plan) {
+        if p.spec.id != "upgrade.migrate" || self.no_notes.contains(&p.id) {
+            return;
+        }
+        let Some(target) = release_notes::Target::of_upgrade(p.args.str("target")) else { return };
+        let release = target.name();
+        let told = self.session.state().conversation.iter().any(|e| matches!(e, Entry::Notes(n) if n.release == release));
+        if told {
+            return;
+        }
+        let t = Tokens::get(ui.ctx());
+        ui.add_space(8.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            widgets::badge(ui, "while you wait", t.accent);
+            ui.label(RichText::new(format!("Hear what's new in {release}?")).size(13.0).color(t.ink));
+            if widgets::badge_button(ui, "Tell me", Some(t.risk(Risk::Change)))
+                .on_hover_text("The release notes' entries for this system, with links, and a short summary")
+                .clicked()
+            {
+                self.acts.push(Act::WhatsNew(target.clone()));
+            }
+            if widgets::badge_button(ui, "Not now", None).clicked() {
+                self.no_notes.insert(p.id);
+            }
+        });
+    }
+
+    /// What's new in a release: the entries for this system, each a link,
+    /// and the full notes online and on disk.
+    fn notes_card(&mut self, ui: &mut Ui, n: &release_notes::Notes) {
+        let t = Tokens::get(ui.ctx());
+        Frame::new().fill(t.bg).stroke(t.hairline()).inner_margin(Margin::same(14)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                widgets::tag(ui, "what's new", t.accent, t.invert_fg);
+                ui.label(RichText::new(&n.release).family(theme::semibold()).size(16.0).color(t.ink_strong));
+            });
+            ui.add_space(4.0);
+            ui.label(RichText::new(format!("From the {}.", n.source)).size(12.5).color(t.muted));
+            if let Some(c) = &n.caveat {
+                ui.label(RichText::new(c).size(12.5).italics().color(t.warn));
+            }
+            if !n.entries.is_empty() {
+                ui.add_space(8.0);
+                widgets::hud(ui, &format!("{} of {} entries concern this system", n.entries.len(), n.total), t.faint);
+                ui.add_space(4.0);
+                for e in &n.entries {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        let link = ui.add(egui::Link::new(RichText::new(&e.title).size(13.5).color(t.ink)));
+                        if link.on_hover_text(&e.link).clicked() {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(&e.link));
+                        }
+                        ui.label(RichText::new(format!("· {}", e.why)).size(12.0).color(t.faint));
+                    });
+                }
+            }
+            ui.add_space(8.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                if widgets::badge_button(ui, "Read all online ↗", None).on_hover_text(&n.online).clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(&n.online));
+                }
+                if let Some(local) = &n.local {
+                    if widgets::badge_button(ui, "Open the copy on this machine", None).on_hover_text(local).clicked() {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(format!("file://{local}")));
+                    }
+                }
+            });
         });
     }
 

@@ -15,6 +15,8 @@ mod state;
 pub mod welcome;
 
 pub use session::{Cmd, Session};
+/// What's new in a release, for [`Cmd::WhatsNew`] and its card.
+pub use yaist_modules::release_notes;
 pub use state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus};
 
 /// The action behind "Install updates": `zypper update` on Leap, `zypper dup`

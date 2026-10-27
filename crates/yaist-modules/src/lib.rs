@@ -8,6 +8,7 @@ mod helper;
 mod media;
 mod packages;
 mod printers;
+pub mod release_notes;
 pub mod report;
 mod repos;
 mod selinux;
@@ -46,5 +47,6 @@ pub fn registry() -> Registry {
     printers::register(&mut reg);
     snapshots::register(&mut reg);
     upgrade::register(&mut reg);
+    release_notes::register(&mut reg);
     reg
 }

@@ -151,6 +151,7 @@ fn cli_ask(question: &str) -> Result<()> {
             Entry::Result { title, output, .. } => println!("result > {title}: {}", output.headline()),
             Entry::Error(e) => println!("error  > {e}"),
             Entry::Notice(n) => println!("note   > {n}"),
+            Entry::Notes(n) => println!("notes  > {}", n.listing()),
         }
     }
     println!("total  > {:.1}s", t0.elapsed().as_secs_f32());

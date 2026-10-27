@@ -1080,6 +1080,18 @@ impl App {
             }
             Entry::Error(s) => text(out, &format!("✗ {s}"), t.bad, 1),
             Entry::Notice(s) => text(out, s, t.muted, 1),
+            Entry::Notes(n) => {
+                out.push(Line::from(vec![Span::raw(" "), self.hud(&format!("what's new · {}", n.release), t.faint)]));
+                text(out, &format!("From the {}.", n.source), t.muted, 1);
+                if let Some(c) = &n.caveat {
+                    text(out, c, t.warn, 1);
+                }
+                for e in &n.entries {
+                    text(out, &format!("• {}", e.title), t.ink, 1);
+                    text(out, &format!("{} · {}", e.why, e.link), t.faint, 3);
+                }
+                text(out, &format!("Full notes: {}", n.local.as_deref().unwrap_or(&n.online)), t.muted, 1);
+            }
         }
     }
 

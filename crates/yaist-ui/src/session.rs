@@ -68,6 +68,8 @@ pub enum Cmd {
         id: u64,
         value: String,
     },
+    /// Tell the user what's new in the release an upgrade goes to.
+    WhatsNew(yaist_modules::release_notes::Target),
     /// Show a made-up scene (see [`crate::demo`]), as `/demo` does but
     /// without the command line, for screenshots.
     Demo(String),
@@ -435,12 +437,44 @@ impl Jobs {
                 Cmd::Refresh(i) => self.sh.refresh(i),
                 Cmd::CheckUpdates => self.sh.check_updates(),
                 Cmd::Answer { id, value } => self.sh.answer(id, value),
+                Cmd::WhatsNew(target) => self.whats_new(target).await,
                 Cmd::Demo(name) => {
                     self.cancel_all();
                     self.demo(&name);
                 }
             }
         }
+    }
+
+    /// The release notes' entries for this system, then the model's summary
+    /// of them when it runs. Links work either way.
+    async fn whats_new(&mut self, target: yaist_modules::release_notes::Target) {
+        use yaist_modules::release_notes;
+        let started = Instant::now();
+        let release = target.name();
+        self.sh.push(Entry::User(format!("What's new in {release}?")));
+        self.sh.busy(Some("Reading the release notes…".into()));
+        let notes = release_notes::load(&self.sh.ctx, &target).await;
+        self.sh.push(Entry::Notes(notes.clone()));
+        if notes.entries.is_empty() {
+            self.sh.busy(None);
+            return;
+        }
+        self.sh.busy(Some("Summarising…".into()));
+        let (system, user) = release_notes::summary_prompt(&notes);
+        let messages = [serde_json::json!({ "role": "system", "content": system }), serde_json::json!({ "role": "user", "content": user })];
+        match self.agent.llm.chat_limited(&messages, &[], 500).await {
+            Ok(reply) if !reply.content.is_empty() => {
+                // So follow-up questions have it.
+                self.agent.note(&format!("you told the user what's new in {release}: {}", reply.content));
+                self.sh.push(Entry::Assistant { text: reply.content, elapsed: started.elapsed() });
+            }
+            _ => self.sh.push(Entry::Notice(format!(
+                "No summary, as the local model isn't running (start it with {}). The entries above are the ones that concern this system.",
+                crate::llm_start_hint()
+            ))),
+        }
+        self.sh.busy(None);
     }
 
     /// Adds the made-up scene `name`, or lists the scenes.

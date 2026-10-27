@@ -40,3 +40,4 @@ shot welcome 25
 shot package-conflict 30 -e YAIST_DEMO_CONFIRM=1 \
     -e "YAIST_DEMO=zypper in postfix sendmail exim pipewire-pulseaudio pulseaudio busybox-which which"
 shot report 8 -e YAIST_DEMO_SCENE=report-distro
+shot whats-new 8 -e YAIST_DEMO_SCENE=whats-new

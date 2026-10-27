@@ -64,7 +64,7 @@ impl LlmClient {
     }
 
     pub async fn chat_limited(&self, messages: &[Value], tools: &[Value], max_tokens: u32) -> Result<Reply> {
-        let body = json!({
+        let mut body = json!({
             "model": self.config.model,
             "messages": messages,
             "tools": tools,
@@ -75,6 +75,13 @@ impl LlmClient {
             // (system prompt + tool schemas), the main latency win.
             "cache_prompt": true,
         });
+        // Plain text, e.g. a summary: no tools to offer.
+        if tools.is_empty() {
+            if let Some(b) = body.as_object_mut() {
+                b.remove("tools");
+                b.remove("tool_choice");
+            }
+        }
         let resp =
             self.http.post(format!("{}/v1/chat/completions", self.config.url)).json(&body).send().await.context("contacting the local model")?;
         let status = resp.status();

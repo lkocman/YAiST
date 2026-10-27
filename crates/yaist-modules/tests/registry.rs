@@ -116,6 +116,7 @@ fn every_action_teaches_its_terminal_command() {
                     "target" => "tumbleweed",
                     "email" => "geeko@example.org",
                     "regcode" => "ABCD-1234",
+                    "version" => "16.1",
                     _ => "example",
                 },
             };
