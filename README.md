@@ -16,16 +16,38 @@ three run the same actions, and every change waits for your confirmation.
 - The model runs locally (llama.cpp); nothing leaves the machine.
 - Terminal UI and desktop GUI with the same layout.
 
-Status: **prototype**. See [PLAN.md](PLAN.md) for the design and
-[docs/LICENSING.md](docs/LICENSING.md) for licensing.
+Status: **prototype**.
 
 ![YAiST welcome screen on openSUSE Tumbleweed: modules on the left, updates and starting points in the middle, the AI conversation on the right](docs/screenshots/welcome.png)
 
-When a change runs into trouble, YAiST asks instead of failing. Here zypper
-found three conflicts in one install; each comes up in turn with zypper's own
-solutions, and a summary follows before anything is changed:
+## Examples
+
+**Conflicts are questions, not failures.** Here zypper found three conflicts
+in one install. Each comes up in turn with zypper's own solutions, and a
+summary follows before anything is changed:
 
 ![A package conflict dialog: "Package conflict 1 of 3", busybox-which conflicts with which, with zypper's solutions to pick from](docs/screenshots/package-conflict.png)
+
+**What's new while you wait.** During an upgrade to a new Leap release,
+YAiST offers to tell what changes. It shows the release-notes entries that
+concern this system (hardware, desktop, installed packages), each a link,
+and the local model sums them up:
+
+![The conversation during an upgrade to Leap 16.1: six of 107 release-notes entries that concern this system, such as GDM and PipeWire, with links, and a short summary below](docs/screenshots/whats-new.png)
+
+**Reporting a problem, when you decide to.** A failed change offers a
+prefilled openSUSE Bugzilla report or YAiST issue, the likelier one first,
+with what was run and its output already in it:
+
+![A failed package install: hplip's %post script failed, with "Report a Tumbleweed bug" suggested and "Report a YAiST issue" next to it](docs/screenshots/report.png)
+
+**Familiar commands work too.** `zypper in fish`, `sudo systemctl restart
+sshd` or `zypper --releasever 16.1 dup` typed in the prompt give the same
+confirmation card as asking in plain language. Every card shows the terminal
+command it stands for and, after a change, exactly what YAiST ran.
+
+Try any of these without changing anything: type `/demo` in the prompt for
+the made-up scenes, e.g. `/demo whats-new` or `/demo report-distro`.
 
 ## Modules
 
@@ -72,69 +94,12 @@ about 2.5 GB, nothing downloaded at run time. It runs as the sandboxed
 `yaist-llm` service, which is not enabled on its own; until it runs, panels
 and `/commands` work and the conversation says how to start it.
 
-## Running from source
+## More
 
-```sh
-# 1. The local model (rootless podman, Vulkan GPU if available; first start
-#    downloads ~2.5 GB)
-scripts/llm-server.sh
-
-# 2. Build (needs cargo; without it, builds in a Leap 16.0 container)
-cargo build                      # or: scripts/build-in-container.sh build
-
-# 3. Use it
-target/debug/yaist-gui           # desktop
-target/debug/yaist               # terminal (ctrl-q quits)
-```
-
-Familiar commands work in the prompt too and show what they map to, so
-`zypper in fish`, `sudo systemctl restart sshd` or `zypper --releasever 16.1
-dup` give the same confirmation card as asking in plain language. Every plan
-card shows the equivalent terminal command, and after a change, exactly what
-YAiST executed.
-
-To get YAiST into the desktop's app menu with its icon (development build,
-no root): `scripts/dev-install-desktop.sh`.
-
-Command line:
-
-```sh
-yaist run /firewall overview             # any read action
-yaist run /firewall open-port 8080 --yes # changes need --yes
-yaist ask "is ssh running?"              # one request through the agent; plans are never applied
-yaist help [module]                      # all /commands
-yaist tools                              # the tool definitions the model sees
-```
-
-Changes run with your privileges through polkit: systemd, firewalld and
-timedated ask for authentication themselves; package, user and SELinux changes
-use `pkexec`, and snapshots and Leap upgrades go through `yaist-helper`, a
-small privileged program that re-validates its arguments. Plain pkexec asks
-for the password every time; `scripts/dev-install-helper.sh` installs the
-helper with a polkit policy that keeps the authorisation for a few minutes.
-In the planned design all of this moves into a privileged `yaistd` daemon.
-
-## Configuration
-
-| Variable | Default |
-|---|---|
-| `YAIST_LLM_URL` | `http://127.0.0.1:8080` |
-| `YAIST_WELCOME_ART` | an SVG or PNG shown on the welcome screen instead of the drawn chameleon (e.g. the openSUSE logo) |
-| `YAIST_END_OF_LIFE` | pretend the end of support is this date (`YYYY-MM-DD`), to see the END OF LIFE state |
-| `YAIST_OS_RELEASE` | pretend to be another flavour, e.g. `tests/os-release/leap-16.1-immutable` (development; check plans only) |
-| `YAIST_MODEL` (llm-server.sh) | `unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M` |
-| `YAIST_LLM_PORT` (llm-server.sh) | `8080` |
-
-## Layout
-
-```
-crates/yaist-core      action model: specs, validation, /command syntax, registry
-crates/yaist-modules   system, users, services, firewall, selinux, packages, repos
-crates/yaist-agent     llama-server client and tool-calling agent
-crates/yaist-ui        shared client model (state, plans, forms, palette)
-apps/yaist             TUI + CLI
-apps/yaist-gui         egui desktop app
-```
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): running from source, the
+  command line, privileges, configuration, demos and screenshots
+- [PLAN.md](PLAN.md): the design
+- [docs/LICENSING.md](docs/LICENSING.md): licensing
 
 ## License
 

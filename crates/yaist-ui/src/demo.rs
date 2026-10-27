@@ -124,40 +124,39 @@ const UPGRADE_LOG: &[&str] = &[
     "(1012/1843) Retrieving: kernel-default-6.12.0-160100.7.1.x86_64 (Main Repository (OSS)), 158.2 MiB",
 ];
 
-/// What `release_notes::load` gives for Leap 16.1 while only the SLES notes
-/// are out, on a desktop with an AMD card.
+/// What `release_notes::load` gives for Leap 16.1 from the installed
+/// release-notes-openSUSE-Leap-16.1, on a GNOME desktop.
 fn sample_notes() -> Notes {
-    let page = "https://documentation.suse.com/releasenotes/sles/html/releasenotes_sles_16.1/index.html";
+    let page = "/usr/share/doc/release-notes/openSUSE/Leap-16.1/RELEASE-NOTES.en.html";
     let entry = |title: &str, why: &str, id: &str, excerpt: &str| NoteEntry {
         title: title.into(),
         why: why.into(),
-        link: format!("{page}#{id}"),
+        link: format!("file://{page}#{id}"),
         excerpt: excerpt.into(),
     };
     Notes {
         release: "Leap 16.1".into(),
-        source: "SUSE Linux Enterprise Server 16.1 release notes".into(),
-        caveat: Some("Leap 16.1's own notes aren't published yet; these are from SUSE Linux Enterprise Server 16.1, which Leap 16.1 is built on.".into()),
-        online: page.into(),
-        local: Some("~/.cache/yaist/release-notes/sles-16.1.html".into()),
+        source: "Leap 16.1 release notes".into(),
+        caveat: None,
+        online: "https://doc.opensuse.org/release-notes/".into(),
+        local: Some(page.into()),
         entries: vec![
-            entry("Upgrade and migration checklist", "about upgrading", "upgrade-checklist", "What to check before, during and after the upgrade."),
+            entry("Upgrade from Leap 16.0", "about upgrading", "leap-upgrade-from-160", "Use the openSUSE migration tool; preview with --dry-run first."),
+            entry("GDM no longer uses the xdm integration", "you have gdm installed", "leap-features-306", "A systemd service from gdm-systemd starts GDM; DISPLAYMANAGER no longer selects it."),
+            entry("PipeWire replaces PulseAudio", "you have pipewire installed", "id-pipewire-replaces-pulseaudio", "Upgrades should move from PulseAudio automatically."),
             entry("Security update and changes in mount behavior for util-linux", "you have util-linux installed", "jsc-PED-16741", "Non-root mount operations must always use path canonicalization."),
             entry("Unified systemd service presets between standard and immutable modes", "you have systemd installed", "jsc-PED-16083", "Several service presets are newly enabled by default."),
-            entry("Firewalld default presets", "you have firewalld installed", "jsc-PED-4973", "firewalld is now enabled by default."),
             entry("Distrobox pre-installed by default", "you have distrobox installed", "jsc-PED-16282", "distrobox replaces the older toolbox utility."),
-            entry("FreeRDP has been updated to version 3.26.0", "you have freerdp installed", "jsc-PED-15573", "FreeRDP 3.26.0."),
         ],
-        total: 119,
+        total: 107,
     }
 }
 
-const SAMPLE_SUMMARY: &str = "- firewalld is now switched on by default. If you had it off on purpose, check it after the reboot.
+const SAMPLE_SUMMARY: &str = "- GDM now starts from its own systemd service. Setting DISPLAYMANAGER no longer picks it; if GDM should stay your login screen, nothing to do.
+- Sound moves from PulseAudio to PipeWire on its own. If audio is silent after the reboot, check that the wireplumber-video-only profile isn't in use.
 - Some services are now enabled by default, the same way on standard and immutable systems. Check that nothing starts that you don't want.
-- Mounting as a normal user is stricter now (a util-linux security fix). Scripts that mount through symlinks may need full paths.
-- Distrobox replaces toolbox for running containers.
-- FreeRDP is updated to 3.26.
-- The upgrade checklist lists what to look at after the reboot.";
+- Mounting as a normal user is stricter (a util-linux security fix). Scripts that mount through symlinks may need full paths.
+- Distrobox replaces toolbox for running containers.";
 
 #[cfg(test)]
 mod tests {

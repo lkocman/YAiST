@@ -5,9 +5,10 @@
 //! Our code picks the entries; a model may summarise them, never choose
 //! them. Leap's own notes come first: online (doc.opensuse.org, kept in
 //! ~/.cache/yaist/release-notes) or installed (release-notes-openSUSE-Leap-
-//! <version>, which has them before they are online). Without either, the
-//! notes of the SUSE Linux Enterprise Server release Leap is built on stand
-//! in. For Leap, entries only enterprise customers care about are left out. `YAIST_RELEASE_NOTES=file.html` reads a local copy
+//! <version>, which has them before they are online). Leap's notes are an
+//! overlay on the notes of the SUSE Linux Enterprise Server release it is
+//! built on, so without them, SLES's stand in. Either way, for Leap the
+//! entries only enterprise customers care about are left out. `YAIST_RELEASE_NOTES=file.html` reads a local copy
 //! instead, for testing before the notes are out.
 
 use std::collections::HashSet;
@@ -187,7 +188,8 @@ pub async fn load(ctx: &Context, target: &Target) -> Notes {
             _ => (doc.url(), doc.url()),
         };
         return Notes {
-            // Leap's notes carry SLE's chapters too.
+            // Leap's notes are SLES's with a Leap overlay: SLES's
+            // enterprise-only entries are in them too.
             entries: relevant(&sections, &facts, matches!(target, Target::Leap(_)), &base),
             total: sections.len(),
             release,
