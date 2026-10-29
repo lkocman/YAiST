@@ -1204,7 +1204,7 @@ impl App {
         ui.add_space(10.0);
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-            for q in yaist_ui::welcome::suggestions(&v.distro_info).into_iter().take(4) {
+            for q in yaist_ui::welcome::prompts(v.modules[v.selected].spec.id, &v.distro_info).into_iter().take(4) {
                 if widgets::chip(ui, q).clicked() {
                     self.acts.push(Act::Submit(q.to_owned()));
                 }

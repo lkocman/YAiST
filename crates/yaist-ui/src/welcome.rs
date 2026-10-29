@@ -169,6 +169,28 @@ pub fn suggestions(d: &Distro) -> Vec<&'static str> {
     s
 }
 
+/// Requests for the conversation's greeting, about the module that is open:
+/// the welcome screen (or a module without its own) gets the mixed ones.
+pub fn prompts(module: &str, d: &Distro) -> Vec<&'static str> {
+    let leap = d.id == "opensuse-leap";
+    match module {
+        "system" => vec!["What time zone am I in?", "Change the hostname", "Keep the clock in sync", "Reboot the computer"],
+        "packages" => vec!["Is my system up to date?", "Install VLC", "Find a PDF editor", "Which Flatpak apps do I have?"],
+        "repos" => vec!["Which repositories do I have?", "Add Flathub", "Enable the non-OSS repository", "Add the games repository from OBS"],
+        "snapshots" => vec!["Take a snapshot before I update", "What changed in the last snapshot?", "Roll back to yesterday's snapshot", "Which snapshots do I have?"],
+        "upgrade" if leap => vec!["Is there a newer Leap?", "Upgrade to the next Leap", "Switch to Tumbleweed", "Move to SUSE Linux Enterprise"],
+        "upgrade" => vec!["Where can I upgrade to?", "Update the system"],
+        "services" => vec!["Which services failed?", "Is sshd running?", "Restart the printing service", "Which services start at boot?"],
+        "firewall" => vec!["Open port 8080 for my dev server", "Allow SSH through the firewall", "Which ports are open?", "What else can I allow?"],
+        "users" => vec!["Who has an account here?", "Who can use sudo?", "Let my nephew tom log in, without sudo", "Which groups am I in?"],
+        "selinux" => vec!["Is SELinux enforcing?", "Show recent SELinux denials", "Allow the web server to make network connections", "Which SELinux booleans are on?"],
+        "printers" => vec!["Find my printer", "Print a test page", "Set up my HP printer", "Cancel all print jobs"],
+        "media" => vec!["Set up Steam", "Set up the graphics driver", "Play all video formats", "What's set up for gaming?"],
+        "community" => vec!["Where can I chat with other users?", "Any openSUSE events coming up?", "Where do I get help?", "Report a problem"],
+        _ => suggestions(d),
+    }
+}
+
 pub use yaist_modules::community::{link, Link, FEATURED, GROUPS, LINKS};
 
 /// The chameleon for terminals: our own drawing, not the Geeko logo.
@@ -182,3 +204,20 @@ pub const ASCII_CHAMELEON: &[&str] = &[
     r"     '-'  /_/     /_/          ",
     r"   =====================~~     ",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_module_has_its_own_prompts() {
+        let leap = Distro { id: "opensuse-leap".into(), ..Default::default() };
+        let tw = Distro { id: "opensuse-tumbleweed".into(), rolling: true, ..Default::default() };
+        for m in yaist_modules::registry().modules.iter().filter(|m| m.id != "welcome") {
+            for d in [&leap, &tw] {
+                let p = prompts(m.id, d);
+                assert!(!p.is_empty() && p != suggestions(d), "{} on {}", m.id, d.id);
+            }
+        }
+    }
+}

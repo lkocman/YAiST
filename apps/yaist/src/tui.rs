@@ -868,7 +868,7 @@ impl App {
         if s.conversation.iter().all(|e| matches!(e, Entry::Notice(_) | Entry::Error(_))) {
             lines.push(Line::from(Span::styled(" How can I help?", self.style(t.ink_strong).add_modifier(Modifier::BOLD))));
             lines.push(Line::from(Span::styled(" Ask in plain language, for example:", self.style(t.muted))));
-            for q in welcome::suggestions(&s.distro).into_iter().take(4) {
+            for q in welcome::prompts(s.modules[s.selected].spec.id, &s.distro).into_iter().take(4) {
                 lines.push(Line::from(vec![Span::styled("   › ", self.style(t.accent)), Span::styled(q, self.style(t.ink))]));
             }
             lines.push(Line::from(""));
