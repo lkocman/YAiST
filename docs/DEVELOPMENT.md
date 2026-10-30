@@ -51,6 +51,7 @@ In the planned design all of this moves into a privileged `yaistd` daemon.
 | `YAIST_LLM_MODEL` | `local`: the model name sent to the server |
 | `YAIST_WELCOME_ART` | an SVG or PNG shown on the welcome screen instead of the drawn chameleon (e.g. the openSUSE logo) |
 | `YAIST_THEME` | `light` starts the GUI in the light scheme |
+| `YAIST_TEXT_SIZE` | starts the GUI at this text size (e.g. `150%`) instead of the saved one (`~/.config/yaist/text-size`) |
 | `YAIST_FONT_DIR` | `/usr/share/yaist/fonts` |
 | `YAIST_HELPER` | path to `yaist-helper`; default: the installed one, else next to the binary |
 | `YAIST_RELEASE_NOTES` | a release-notes HTML page to read instead of the installed or online ones (testing) |

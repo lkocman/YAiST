@@ -137,6 +137,8 @@ pub struct State {
     pub llm_url: String,
     pub updates: UpdateStatus,
     pub question: Option<Asked>,
+    /// The GUI's text size (1.0 normal); `None` where the terminal decides.
+    pub text_size: Option<f32>,
 }
 
 impl State {

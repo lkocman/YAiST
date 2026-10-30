@@ -7,11 +7,12 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use tokio::sync::{mpsc, oneshot};
-use yaist_agent::{action_id, Agent, LlmClient, LlmConfig};
+use yaist_agent::{action_id, Agent, LlmClient, LlmConfig, TEXT_SIZE_TOOL};
 use yaist_core::ask::{self, Question};
 use yaist_core::log;
 use yaist_core::{command, ActionSpec, Context, Registry, Risk};
 
+use crate::text_size::{self, Change};
 use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus, LOG_LINES};
 
 /// Where the output of changes is kept, under $XDG_STATE_HOME (or
@@ -73,6 +74,8 @@ pub enum Cmd {
     /// Show a made-up scene (see [`crate::demo`]), as `/demo` does but
     /// without the command line, for screenshots.
     Demo(String),
+    /// Change the GUI's text size (header buttons, Ctrl+Plus/Minus/0).
+    TextSize(Change),
 }
 
 #[derive(Clone)]
@@ -210,6 +213,18 @@ impl Shared {
         })
     }
 
+    /// Changes the text size and keeps it for the next start; the new size,
+    /// or `None` when this client has no text size of its own.
+    fn text_size(&self, change: Change) -> Option<f32> {
+        let z = self.update(|s| {
+            let z = change.apply(s.text_size?);
+            s.text_size = Some(z);
+            Some(z)
+        })?;
+        text_size::save(z);
+        Some(z)
+    }
+
     fn answer(&self, id: u64, value: String) {
         if let Some(tx) = self.questions.lock().unwrap_or_else(|e| e.into_inner()).remove(&id) {
             let _ = tx.send(value);
@@ -239,15 +254,20 @@ impl Session {
     /// Starts the backend. `notify` is called whenever the state changes, so a
     /// GUI can schedule a repaint.
     pub fn start(notify: impl Fn() + Send + Sync + 'static) -> Self {
-        Self::start_with(notify, true)
+        Self::start_with(notify, true, false)
+    }
+
+    /// A session for a client that can change its text size (the GUI).
+    pub fn start_zoomable(notify: impl Fn() + Send + Sync + 'static) -> Self {
+        Self::start_with(notify, true, true)
     }
 
     /// A session without panels, for scripted use.
     pub fn start_headless() -> Self {
-        Self::start_with(|| {}, false)
+        Self::start_with(|| {}, false, false)
     }
 
-    fn start_with(notify: impl Fn() + Send + Sync + 'static, panels: bool) -> Self {
+    fn start_with(notify: impl Fn() + Send + Sync + 'static, panels: bool, zoom: bool) -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("tokio runtime");
         let reg = Arc::new(yaist_modules::registry());
         let ctx = Arc::new(Context::new());
@@ -279,6 +299,7 @@ impl Session {
             llm_url: llm.config.url.clone(),
             updates: UpdateStatus::Checking,
             question: None,
+            text_size: zoom.then(text_size::load),
         }));
 
         let sh = Shared {
@@ -305,6 +326,9 @@ impl Session {
                     Cmd::Refresh(i) => dispatch_sh.refresh(i),
                     Cmd::CheckUpdates => dispatch_sh.check_updates(),
                     Cmd::Answer { id, value } => dispatch_sh.answer(id, value),
+                    Cmd::TextSize(change) => {
+                        dispatch_sh.text_size(change);
+                    }
                     other => {
                         let _ = job_tx.send(other);
                     }
@@ -313,6 +337,7 @@ impl Session {
         });
 
         let agent = Agent::new(&reg, &ctx.distro, llm.clone());
+        let agent = if zoom { agent.with_text_size() } else { agent };
         let warm = agent.warmer();
         let (done_tx, done_rx) = mpsc::unbounded_channel();
         let jobs = Jobs { sh: sh.clone(), agent, pending: VecDeque::new(), call_ids: HashMap::new(), next_id: 1, running: None, done_tx };
@@ -437,6 +462,9 @@ impl Jobs {
                 Cmd::Refresh(i) => self.sh.refresh(i),
                 Cmd::CheckUpdates => self.sh.check_updates(),
                 Cmd::Answer { id, value } => self.sh.answer(id, value),
+                Cmd::TextSize(change) => {
+                    self.sh.text_size(change);
+                }
                 Cmd::WhatsNew(target) => self.whats_new(target).await,
                 Cmd::Demo(name) => {
                     self.cancel_all();
@@ -505,6 +533,16 @@ impl Jobs {
         if text.is_empty() {
             return;
         }
+        // Not a request: plan cards stay up.
+        if let Some(arg) = text.strip_prefix("/zoom").filter(|r| r.is_empty() || r.starts_with(' ')) {
+            self.sh.push(Entry::Command(text.to_owned()));
+            let entry = match Change::parse(arg) {
+                Ok(change) => Entry::Notice(self.text_size_said(change)),
+                Err(e) => Entry::Error(format!("/zoom: {e}")),
+            };
+            self.sh.push(entry);
+            return;
+        }
         self.cancel_all();
         if text == "/clear" {
             self.agent.clear();
@@ -522,7 +560,13 @@ impl Jobs {
         if text.starts_with('/') || command::is_tool_command(text) {
             self.sh.push(Entry::Command(text.to_owned()));
             match command::parse(&self.sh.reg, text) {
-                Ok(command::Parsed::Help(module)) => self.sh.push(Entry::Notice(command::help(&self.sh.reg, module.as_deref()))),
+                Ok(command::Parsed::Help(module)) => {
+                    let mut help = command::help(&self.sh.reg, module.as_deref());
+                    if module.is_none() {
+                        help.push_str("\n\n/zoom in|out|reset|150%   text size (also Ctrl+Plus, Ctrl+Minus, Ctrl+0)");
+                    }
+                    self.sh.push(Entry::Notice(help));
+                }
                 Ok(command::Parsed::Action { spec, raw }) => {
                     self.invoke(spec, raw, None).await;
                 }
@@ -532,6 +576,14 @@ impl Jobs {
         }
         self.sh.push(Entry::User(text.to_owned()));
         self.agent_turn(text).await;
+    }
+
+    /// Changes the text size; what to tell the user.
+    fn text_size_said(&self, change: Change) -> String {
+        match self.sh.text_size(change) {
+            Some(z) => format!("Text size {} (Ctrl+Plus, Ctrl+Minus, Ctrl+0 work too).", text_size::percent(z)),
+            None => "The terminal sets the text size here: use its zoom (often Ctrl+Plus and Ctrl+Minus).".into(),
+        }
     }
 
     /// Runs a read action now, or turns a change into a plan card. Returns the
@@ -622,6 +674,19 @@ impl Jobs {
             }
             let mut waiting = false;
             for call in reply.tool_calls {
+                if call.name == TEXT_SIZE_TOOL {
+                    let size = call.arguments.as_ref().ok().and_then(|a| a.get("size")).and_then(Value::as_str).unwrap_or("");
+                    let result = match Change::parse(size) {
+                        Ok(change) => {
+                            let said = self.text_size_said(change);
+                            self.sh.push(Entry::Notice(said.clone()));
+                            said
+                        }
+                        Err(e) => format!("Error: {e}"),
+                    };
+                    self.agent.push_tool_result(&call.id, &result);
+                    continue;
+                }
                 let Some(spec) = self.sh.reg.get(&action_id(&call.name)).copied() else {
                     self.agent.push_tool_result(&call.id, &format!("Error: there is no tool called {}", call.name));
                     continue;
@@ -782,6 +847,7 @@ mod tests {
             llm_url: String::new(),
             updates: UpdateStatus::Checking,
             question: None,
+            text_size: None,
         }));
         let reg = Arc::new(reg);
         let sh = Shared {

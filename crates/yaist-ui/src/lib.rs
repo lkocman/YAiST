@@ -12,6 +12,7 @@ pub mod demo;
 pub mod palette;
 mod session;
 mod state;
+pub mod text_size;
 pub mod welcome;
 
 pub use session::{Cmd, Session};

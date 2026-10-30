@@ -163,6 +163,31 @@ pub fn theme_toggle(ui: &mut Ui, dark: bool, height: f32) -> Response {
     resp.on_hover_text("Light / dark").on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
+/// Text size controls for the header: smaller, the size (click for normal),
+/// bigger. Laid out right to left, like the rest of the header's right side.
+pub fn text_size_controls(ui: &mut Ui, size: f32, height: f32) -> Option<yaist_ui::text_size::Change> {
+    use yaist_ui::text_size::{percent, Change};
+    let t = Tokens::get(ui.ctx());
+    let mut change = None;
+    let mut cell = |ui: &mut Ui, label: &str, font: f32, width: f32, tip: &str, c: Change| {
+        let (rect, resp) = ui.allocate_exact_size(vec2(width, height), Sense::click());
+        let hovered = resp.hovered();
+        if hovered {
+            ui.painter().rect_filled(rect, CornerRadius::ZERO, t.invert_bg);
+        }
+        let ink = if hovered { t.invert_fg } else { t.muted };
+        let galley = caps(ui, label, font, theme::mono_bold(), 0.0, ink);
+        paint_centred(ui, rect, galley, ink);
+        if resp.on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+            change = Some(c);
+        }
+    };
+    cell(ui, "A+", 13.0, 34.0, "Bigger text (Ctrl+Plus)", Change::Bigger);
+    cell(ui, &percent(size), theme::HUD_SIZE, 46.0, "Normal text size (Ctrl+0)", Change::Reset);
+    cell(ui, "A-", 10.0, 34.0, "Smaller text (Ctrl+Minus)", Change::Smaller);
+    change
+}
+
 const RESIZE_EDGE: f32 = 5.0;
 
 /// Dragging the header's empty space moves the window; double-click maximizes.

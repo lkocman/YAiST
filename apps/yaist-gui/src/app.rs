@@ -14,6 +14,8 @@ use crate::theme::{self, Tokens};
 use crate::widgets::{self, Kind};
 
 const SIDEBAR_W: f32 = 264.0;
+/// The module page never gets narrower than this; the conversation gives way.
+const MIN_PAGE_W: f32 = 440.0;
 /// The app icon (SVG, sharp at any scale), shown next to the wordmark.
 const APP_ICON: &[u8] = include_bytes!("../../../assets/icons/hicolor/scalable/apps/org.opensuse.yaist.svg");
 const ROW_H: f32 = 40.0;
@@ -29,6 +31,7 @@ enum Act {
     Submit(String),
     CheckUpdates,
     Answer(u64, String),
+    TextSize(yaist_ui::text_size::Change),
     Retry(u64),
     WhatsNew(release_notes::Target),
 }
@@ -54,6 +57,7 @@ struct View {
     pending: bool,
     updates: UpdateStatus,
     question: Option<Asked>,
+    text_size: Option<f32>,
 }
 
 pub struct App {
@@ -143,6 +147,27 @@ impl App {
         }
     }
 
+    /// The session owns the text size (it also takes /zoom and the agent's
+    /// requests); the shortcuts go to it, and its size is applied here.
+    fn text_size(&mut self, ctx: &egui::Context, v: &View) {
+        use yaist_ui::text_size::Change;
+        let Some(size) = v.text_size else { return };
+        let shortcuts = [
+            (egui::Key::Plus, Change::Bigger),
+            (egui::Key::Equals, Change::Bigger),
+            (egui::Key::Minus, Change::Smaller),
+            (egui::Key::Num0, Change::Reset),
+        ];
+        for (key, change) in shortcuts {
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, key)) {
+                self.acts.push(Act::TextSize(change));
+            }
+        }
+        if ctx.zoom_factor() != size {
+            ctx.set_zoom_factor(size);
+        }
+    }
+
     fn screenshot(&mut self, ctx: &egui::Context) {
         if self.confirm_demo {
             let pending = self.session.state().pending_plan().map(|p| p.id);
@@ -189,6 +214,7 @@ impl App {
             pending: s.pending_plan().is_some(),
             updates: s.updates.clone(),
             question: s.question.clone(),
+            text_size: s.text_size,
         }
     }
 
@@ -205,6 +231,7 @@ impl App {
                 Act::Submit(text) => self.session.send(Cmd::Submit(text)),
                 Act::CheckUpdates => self.session.send(Cmd::CheckUpdates),
                 Act::Answer(id, value) => self.session.send(Cmd::Answer { id, value }),
+                Act::TextSize(change) => self.session.send(Cmd::TextSize(change)),
                 Act::WhatsNew(target) => self.session.send(Cmd::WhatsNew(target)),
             }
         }
@@ -228,6 +255,7 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         let t = Tokens::get(&ctx);
         let v = self.view();
+        self.text_size(&ctx, &v);
         if v.busy.is_some() {
             ctx.request_repaint_after(Duration::from_millis(80));
         }
@@ -239,10 +267,13 @@ impl eframe::App for App {
             .resizable(false)
             .show(ui, |ui| footer(ui, &v));
         egui::Panel::left("modules").frame(Frame::new().fill(t.bg)).exact_size(SIDEBAR_W).resizable(false).show(ui, |ui| self.sidebar(ui, &v));
+        // The module page keeps room to work in, also with big text: the
+        // conversation gets narrower first.
+        let widest = (ctx.content_rect().width() - SIDEBAR_W - MIN_PAGE_W).clamp(300.0, 760.0);
         egui::Panel::right("conversation")
             .frame(Frame::new().fill(t.bg))
-            .default_size(470.0)
-            .size_range(380.0..=760.0)
+            .default_size(470.0_f32.min(widest))
+            .size_range(300.0_f32.min(widest)..=widest)
             .resizable(true)
             .show(ui, |ui| self.conversation(ui, &v));
         egui::CentralPanel::default()
@@ -296,15 +327,27 @@ impl App {
                 if widgets::theme_toggle(ui, dark, theme::HEADER_H).clicked() {
                     ui.ctx().set_theme(if dark { egui::ThemePreference::Light } else { egui::ThemePreference::Dark });
                 }
+                if let Some(size) = v.text_size {
+                    widgets::rule(ui, theme::HEADER_H);
+                    if let Some(change) = widgets::text_size_controls(ui, size, theme::HEADER_H) {
+                        self.acts.push(Act::TextSize(change));
+                    }
+                }
                 widgets::rule(ui, theme::HEADER_H);
+                // With big text the left side takes the room; these go first.
+                if ui.available_width() < 260.0 {
+                    return;
+                }
                 ui.add_space(16.0);
                 match &v.llm {
                     LlmStatus::Ready(name) => widgets::badge(ui, &format!("model · {name}"), t.good),
                     LlmStatus::Checking => widgets::badge(ui, "model · checking", t.muted),
                     LlmStatus::Offline => widgets::badge(ui, "model · offline", t.warn),
                 };
-                ui.add_space(10.0);
-                widgets::hud(ui, "local ai", t.faint);
+                if ui.available_width() > 100.0 {
+                    ui.add_space(10.0);
+                    widgets::hud(ui, "local ai", t.faint);
+                }
             });
         });
     }
@@ -652,8 +695,12 @@ impl App {
             let art = welcome::welcome_art();
             let art_has_brand = art.as_ref().is_some_and(|(_, brand)| *brand);
             let hero_h = if art_has_brand { 180.0 } else { 220.0 };
+            // A narrow page (big text, small window) leaves the artwork out
+            // rather than squeezing the title.
+            let with_art = ui.available_width() >= 560.0;
             ui.allocate_ui_with_layout(vec2(ui.available_width(), hero_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 match &art {
+                    _ if !with_art => {}
                     Some((uri, _)) => {
                         ui.add(egui::Image::new(uri.clone()).max_size(vec2(240.0, 180.0)));
                     }
@@ -662,7 +709,9 @@ impl App {
                         crate::art::chameleon(ui.painter(), rect, &t);
                     }
                 }
-                ui.add_space(28.0);
+                if with_art {
+                    ui.add_space(28.0);
+                }
                 ui.vertical(|ui| {
                     widgets::hud(ui, "Welcome to", t.muted);
                     ui.add_space(4.0);

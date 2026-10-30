@@ -27,8 +27,10 @@ fn main() -> eframe::Result {
             // SVG from files: the system's distribution logos.
             egui_extras::install_image_loaders(&cc.egui_ctx);
             theme::apply(&cc.egui_ctx);
+            // Ctrl+Plus/Minus/0 go to the session's text size (see App::text_size).
+            cc.egui_ctx.options_mut(|o| o.zoom_with_keyboard = false);
             let ctx = cc.egui_ctx.clone();
-            let session = yaist_ui::Session::start(move || ctx.request_repaint());
+            let session = yaist_ui::Session::start_zoomable(move || ctx.request_repaint());
             Ok(Box::new(app::App::new(session)))
         }),
     )

@@ -33,6 +33,27 @@ pub fn tool_name(action_id: &str) -> String {
     action_id.replace('.', "__")
 }
 
+/// Not an action: the client handles it (the GUI's text size, for showing
+/// YAiST on a shared screen).
+pub const TEXT_SIZE_TOOL: &str = "text_size";
+
+fn text_size_tool() -> Value {
+    json!({
+        "type": "function",
+        "function": {
+            "name": TEXT_SIZE_TOOL,
+            "description": "Make YAiST's own text and window contents bigger or smaller (zoom), e.g. for screen sharing or readability. Not the system's font settings. [read]",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "size": { "type": "string", "description": "bigger, smaller, reset, or a size like 150%" }
+                },
+                "required": ["size"]
+            }
+        }
+    })
+}
+
 pub fn action_id(tool_name: &str) -> String {
     tool_name.replacen("__", ".", 1)
 }
@@ -53,6 +74,12 @@ impl Agent {
             })
             .collect();
         Self { llm, system: json!({ "role": "system", "content": system_prompt(distro) }), tools, history: Vec::new(), notes: Vec::new() }
+    }
+
+    /// Offers the [`TEXT_SIZE_TOOL`], for clients that can zoom.
+    pub fn with_text_size(mut self) -> Self {
+        self.tools.push(text_size_tool());
+        self
     }
 
     pub fn push_user(&mut self, text: &str) {
