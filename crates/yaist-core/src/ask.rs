@@ -42,8 +42,16 @@ pub async fn asking<F: Future>(asker: Asker, f: F) -> F::Output {
     ASKER.scope(asker, f).await
 }
 
-/// Asks the user, when someone is there to answer.
+/// Asks the user, when someone is there to answer. The question and the
+/// answer go to the change's log, so it shows later what was decided.
 pub async fn ask(q: Question) -> Option<String> {
     let asker = ASKER.try_with(Arc::clone).ok()?;
-    asker(q).await
+    crate::log::line(&format!("? {}", q.title));
+    for l in q.text.lines() {
+        crate::log::line(&format!("  {l}"));
+    }
+    let answer = asker(q.clone()).await;
+    let label = answer.as_ref().and_then(|a| q.choices.iter().find(|c| &c.value == a)).map_or("no answer", |c| c.label.as_str());
+    crate::log::line(&format!("> {label}"));
+    answer
 }

@@ -207,13 +207,19 @@ impl Context {
     /// Runs a command as the user. Output is forced to the C locale so it can
     /// be parsed.
     pub async fn run(&self, argv: &[&str]) -> Result<String> {
-        run_command(argv, &[0]).await
+        run_command(argv, &[0], true).await
     }
 
     /// Like [`Context::run`], treating the exit codes in `ok` as success
     /// (zypper reports "nothing found" or "some repos skipped" this way).
     pub async fn run_ok(&self, argv: &[&str], ok: &[i32]) -> Result<String> {
-        run_command(argv, ok).await
+        run_command(argv, ok, true).await
+    }
+
+    /// Like [`Context::run_ok`], for output meant for parsing (XML, JSON):
+    /// it never goes to the client's log.
+    pub async fn read_ok(&self, argv: &[&str], ok: &[i32]) -> Result<String> {
+        run_command(argv, ok, false).await
     }
 
     /// Opens a URL in the user's browser. Unlike other commands this keeps the
@@ -261,11 +267,11 @@ impl Context {
 
     pub async fn run_privileged_ok(&self, argv: &[&str], ok: &[i32]) -> Result<String> {
         if effective_uid() == Some(0) {
-            return run_command(argv, ok).await;
+            return run_command(argv, ok, true).await;
         }
         let mut full = vec!["/usr/bin/pkexec"];
         full.extend_from_slice(argv);
-        run_command(&full, ok).await.map_err(|e| {
+        run_command(&full, ok, true).await.map_err(|e| {
             let msg = e.to_string();
             if msg.contains("exit status: 126") {
                 anyhow!("authentication was cancelled")
@@ -356,7 +362,7 @@ impl Default for Context {
     }
 }
 
-async fn run_command(argv: &[&str], ok: &[i32]) -> Result<String> {
+async fn run_command(argv: &[&str], ok: &[i32], show: bool) -> Result<String> {
     let (prog, rest) = argv.split_first().ok_or_else(|| anyhow!("empty command"))?;
     record(argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
     let mut cmd = tokio::process::Command::new(prog);
@@ -366,7 +372,7 @@ async fn run_command(argv: &[&str], ok: &[i32]) -> Result<String> {
         .env("LC_ALL", "C.UTF-8")
         .stdin(Stdio::null())
         .kill_on_drop(true);
-    let (status, stdout, stderr) = if crate::log::active() {
+    let (status, stdout, stderr) = if show && crate::log::active() {
         streamed(cmd).await
     } else {
         cmd.output().await.map(|o| (o.status, String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned()))
@@ -467,7 +473,7 @@ mod tests {
         let sink = seen.clone();
         let logger: crate::log::Logger = std::sync::Arc::new(move |l| sink.lock().unwrap().push(l));
         let script = "printf 'one\\n'; printf 'Retrieving 10%%\\rRetrieving done\\n'; printf '\\377bad\\n'; echo oops >&2; printf 'last\\n'";
-        let out = crate::log::logging(logger, super::run_command(&["/bin/sh", "-c", script], &[0])).await.unwrap();
+        let out = crate::log::logging(logger, super::run_command(&["/bin/sh", "-c", script], &[0], true)).await.unwrap();
         assert_eq!(out, "one\nRetrieving 10%\rRetrieving done\n\u{fffd}bad\nlast\n");
         let mut seen = seen.lock().unwrap().clone();
         seen.sort();
@@ -477,7 +483,7 @@ mod tests {
     #[tokio::test]
     async fn failures_still_say_why_when_streamed() {
         let logger: crate::log::Logger = std::sync::Arc::new(|_| ());
-        let e = crate::log::logging(logger, super::run_command(&["/bin/sh", "-c", "echo broken >&2; exit 3"], &[0])).await.unwrap_err();
+        let e = crate::log::logging(logger, super::run_command(&["/bin/sh", "-c", "echo broken >&2; exit 3"], &[0], true)).await.unwrap_err();
         assert!(e.to_string().contains("broken"), "{e}");
     }
 }

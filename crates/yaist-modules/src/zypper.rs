@@ -21,7 +21,7 @@ const OK: &[i32] = &[0, 100, 101, 102, 103, 104, 106];
 pub async fn query(ctx: &Context, args: &[&str]) -> Result<String> {
     let mut argv = vec!["/usr/bin/env", "ZYPP_LOCK_TIMEOUT=60", "/usr/bin/zypper", "--xmlout", "--no-refresh", "--non-interactive"];
     argv.extend_from_slice(args);
-    ctx.run_ok(&argv, OK).await.map_err(|e| {
+    ctx.read_ok(&argv, OK).await.map_err(|e| {
         let msg = e.to_string();
         let errors: Vec<String> = msg
             .find("<?xml")
@@ -845,6 +845,34 @@ calls sendmail...</description></solvable>
         again.text = ": Invalid answer 'x'.".into();
         s.answer(again).await;
         assert!(s.unresolved.unwrap().contains("busybox-which"));
+    }
+
+    /// Recorded from `zypper --xmlout dup` on Leap 16.1 with release notes
+    /// from a home project installed: no repository has that build.
+    const FOREIGN_VENDOR: &str = "<prompt id=\"1\">
+<description>Problem: 1: problem with the installed release-notes-openSUSE-20261026.29f58ba-lp161.1.1.noarch
+ Solution 1: install release-notes-openSUSE-84.87.20180228.827b030-lp161.2.1.noarch from vendor openSUSE
+  replacing release-notes-openSUSE-20261026.29f58ba-lp161.1.1.noarch from vendor obs://build.opensuse.org/home:lkocman
+ Solution 2: keep obsolete release-notes-openSUSE-20261026.29f58ba-lp161.1.1.noarch
+</description>
+<text>Choose from above solutions by number or cancel</text>
+<option value=\"1\" desc=\"Choose solution 1\"/>
+<option value=\"2\" desc=\"Choose solution 2\"/>
+<option default=\"1\" value=\"c\" desc=\"Choose no solution and cancel.\"/>
+<option value=\"d\" desc=\"Toggle show detailed conflict information.\"/>
+</prompt>";
+
+    #[test]
+    fn a_package_from_another_vendor_can_be_replaced_or_kept() {
+        let q = Session::default().question(&prompt(FOREIGN_VENDOR)).unwrap();
+        assert_eq!(q.title, "Package conflict");
+        assert_eq!(q.text, "problem with the installed release-notes-openSUSE-20261026.29f58ba-lp161.1.1.noarch");
+        let labels: Vec<&str> = q.choices.iter().map(|c| c.label.as_str()).collect();
+        assert_eq!(labels, [
+            "install release-notes-openSUSE-84.87.20180228.827b030-lp161.2.1.noarch from vendor openSUSE; replacing release-notes-openSUSE-20261026.29f58ba-lp161.1.1.noarch from vendor obs://build.opensuse.org/home:lkocman",
+            "keep obsolete release-notes-openSUSE-20261026.29f58ba-lp161.1.1.noarch",
+            "Cancel, change nothing",
+        ]);
     }
 
     /// Recorded from `zypper --xmlout update` with an OBS repository that has
