@@ -269,6 +269,16 @@ impl Session {
             conversation
                 .push(Entry::Error(format!("This doesn't look like openSUSE ({}); package and repository modules may not work.", ctx.distro.id)));
         }
+        if let Some(total_kib) = yaist_core::total_memory_kib() {
+            // A 4 GiB machine has <= 4 * 1024 * 1024 KiB (often slightly less due to reserved memory).
+            if total_kib <= 4 * 1024 * 1024 {
+                let gib = total_kib as f64 / 1024.0 / 1024.0;
+                conversation.push(Entry::Notice(format!(
+                    "Low system memory detected ({:.1} GiB). Running the local LLM with the default context size may cause out-of-memory errors.",
+                    gib
+                )));
+            }
+        }
         let state = Arc::new(Mutex::new(State {
             distro: ctx.distro.clone(),
             modules,
@@ -846,5 +856,31 @@ mod tests {
         until(&state, "the second change to run", |s| status(s, 2) == Some(PlanStatus::Running)).await;
         release.notify_one();
         until(&state, "the second change to finish", |s| matches!(status(s, 2), Some(PlanStatus::Done(_)))).await;
+    }
+
+    #[test]
+    fn low_memory_warning_emitted_at_startup() {
+        std::env::set_var("YAIST_TOTAL_MEM_KIB", (3 * 1024 * 1024).to_string());
+        let session = Session::start_headless();
+        let s = session.state();
+        let has_low_mem_warning = s.conversation.iter().any(|e| match e {
+            Entry::Notice(n) => n.contains("Low system memory detected") && n.contains("3.0 GiB"),
+            _ => false,
+        });
+        std::env::remove_var("YAIST_TOTAL_MEM_KIB");
+        assert!(has_low_mem_warning, "Expected low memory warning entry in conversation");
+    }
+
+    #[test]
+    fn no_low_memory_warning_with_sufficient_memory() {
+        std::env::set_var("YAIST_TOTAL_MEM_KIB", (8 * 1024 * 1024).to_string());
+        let session = Session::start_headless();
+        let s = session.state();
+        let has_low_mem_warning = s.conversation.iter().any(|e| match e {
+            Entry::Notice(n) => n.contains("Low system memory detected"),
+            _ => false,
+        });
+        std::env::remove_var("YAIST_TOTAL_MEM_KIB");
+        assert!(!has_low_mem_warning, "Unexpected low memory warning when RAM is 8 GiB");
     }
 }

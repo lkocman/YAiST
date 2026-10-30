@@ -146,6 +146,19 @@ fn effective_uid() -> Option<u32> {
     line.split_whitespace().nth(2)?.parse().ok()
 }
 
+/// Returns the total physical system memory in KiB, if detectable.
+/// Can be overridden with `YAIST_TOTAL_MEM_KIB` for tests and VM simulation.
+pub fn total_memory_kib() -> Option<u64> {
+    if let Ok(val) = std::env::var("YAIST_TOTAL_MEM_KIB") {
+        if let Ok(kib) = val.parse::<u64>() {
+            return Some(kib);
+        }
+    }
+    let info = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let line = info.lines().find(|l| l.starts_with("MemTotal:"))?;
+    line.split_whitespace().nth(1)?.parse().ok()
+}
+
 pub struct Context {
     pub distro: Distro,
     bus: OnceCell<zbus::Connection>,
@@ -338,7 +351,7 @@ fn open_pty() -> Result<(std::fs::File, std::fs::File)> {
     let (mut master, mut slave) = (-1, -1);
     // SAFETY: openpty only writes the two descriptors; name, termios and
     // window size are optional and passed as null.
-    let r = unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null(), std::ptr::null()) };
+    let r = unsafe { libc::openpty(&mut master, &mut slave, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) };
     if r != 0 {
         return Err(std::io::Error::last_os_error()).context("opening a pseudo-terminal");
     }
