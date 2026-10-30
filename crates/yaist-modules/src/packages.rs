@@ -2,7 +2,8 @@
 //! command follows the distribution: `zypper up` on Leap, `zypper dup` on
 //! rolling releases, `transactional-update` on immutable variants.
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+use yaist_core::ask::{self, Choice, Question};
 use yaist_core::shell_quote as sq;
 use yaist_core::{validate, ActionSpec, Context, ModuleSpec, Output, Param, Registry, Risk, Table};
 
@@ -37,7 +38,7 @@ const INFO: ActionSpec = ActionSpec {
 const INSTALL: ActionSpec = ActionSpec {
     id: "packages.install",
     title: "Install",
-    description: "Install packages (and their dependencies).",
+    description: "Install packages (and their dependencies). Where openSUSE has a pattern of the same name (e.g. hyprland, gnome, kde), the user picks between that complete setup and just the package.",
     risk: Risk::Change,
     params: &[PACKAGES_PARAM],
 };
@@ -140,8 +141,10 @@ pub fn register(reg: &mut Registry) {
 
     reg.action(INSTALL, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
-        let out = pkg_op(&ctx, "install", &pkgs).await?;
-        Ok(Output::Done(format!("Install {}: {out}", pkgs.join(", "))))
+        let targets = with_patterns(&ctx, &pkgs).await?;
+        let targets: Vec<&str> = targets.iter().map(String::as_str).collect();
+        let out = pkg_op(&ctx, "install", &targets).await?;
+        Ok(Output::Done(format!("Install {}: {out}", targets.join(", "))))
     });
     reg.action(UPDATE, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
@@ -348,6 +351,114 @@ async fn search(ctx: &Context, query: &str) -> Result<Output> {
     Ok(Output::Table(t))
 }
 
+/// A pattern named like a requested package: what openSUSE puts together
+/// around it (Hyprland with a bar, launcher, terminal, file manager…).
+#[derive(Debug, PartialEq)]
+struct PatternOffer {
+    name: String,
+    summary: String,
+    /// There is also a package of that name; without one only the pattern
+    /// can be installed.
+    package: bool,
+}
+
+/// Patterns among zypper's exact search results that aren't installed yet.
+fn pattern_offers(xml: &str) -> Result<Vec<PatternOffer>> {
+    let doc = zypper::parse(xml)?;
+    let solvables: Vec<_> = doc.descendants().filter(|n| n.has_tag_name("solvable")).collect();
+    Ok(solvables
+        .iter()
+        .filter(|s| s.attribute("kind") == Some("pattern") && s.attribute("status") != Some("installed"))
+        .map(|s| {
+            let name = s.attribute("name").unwrap_or("").to_owned();
+            let package = solvables.iter().any(|p| p.attribute("kind") == Some("package") && p.attribute("name") == Some(&name));
+            PatternOffer { summary: s.attribute("summary").unwrap_or("").to_owned(), package, name }
+        })
+        .collect())
+}
+
+/// From `zypper info -t pattern`: the description, and the packages the
+/// pattern brings besides the one named like it.
+fn pattern_details(info: &str, name: &str) -> (String, Vec<String>) {
+    let mut description = Vec::new();
+    let mut packages = Vec::new();
+    let mut section = "";
+    for line in info.lines() {
+        // Blank lines separate paragraphs of the description.
+        if line.trim().is_empty() {
+            if section == "Description" {
+                description.push("");
+            }
+            continue;
+        }
+        if !line.starts_with(' ') {
+            section = line.split(" : ").next().unwrap_or("").trim();
+            continue;
+        }
+        match section {
+            "Description" => description.push(line.trim()),
+            "Contents" => {
+                let cols: Vec<&str> = line.split('|').map(str::trim).collect();
+                if let [_, pkg, "package", _] = cols[..] {
+                    if pkg != name {
+                        packages.push(pkg.to_owned());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    (description.join("\n").trim().to_owned(), packages)
+}
+
+/// The question for an offer; the answers are `pattern`, `package` and
+/// `cancel`. Without anyone to ask, the request stands as it was made.
+fn pattern_question(offer: &PatternOffer, description: &str, packages: &[String]) -> Question {
+    let name = &offer.name;
+    let mut text = if description.is_empty() { offer.summary.clone() } else { description.to_owned() };
+    if !packages.is_empty() {
+        text.push_str(&format!("\n\nThe pattern brings, besides {name}: {}.", packages.join(", ")));
+    }
+    let pattern = Choice { value: "pattern".into(), label: format!("The complete setup: the {name} pattern"), default: !offer.package };
+    let other = if offer.package {
+        Choice { value: "package".into(), label: format!("Only the {name} package"), default: true }
+    } else {
+        Choice { value: "cancel".into(), label: "Cancel, install nothing".into(), default: false }
+    };
+    let title = if offer.package { format!("{name}: just the package, or the complete setup?") } else { format!("{name} is a pattern") };
+    Question { title, text, choices: vec![pattern, other] }
+}
+
+/// The install targets: each requested name, or `pattern:<name>` where the
+/// user picks the pattern of the same name.
+async fn with_patterns(ctx: &Context, pkgs: &[&str]) -> Result<Vec<String>> {
+    let mut args = vec!["search", "--match-exact", "-t", "package", "-t", "pattern", "--"];
+    args.extend_from_slice(pkgs);
+    // Only a suggestion: if the search fails, the install goes ahead as asked.
+    let offers = match zypper::query(ctx, &args).await {
+        Ok(xml) => pattern_offers(&xml)?,
+        Err(_) => Vec::new(),
+    };
+    let mut targets: Vec<String> = pkgs.iter().map(|p| (*p).to_owned()).collect();
+    for offer in offers {
+        let info = zypper::query(ctx, &["info", "-t", "pattern", "--", &offer.name]).await.unwrap_or_default();
+        let messages = zypper::parse(&info).map(|d| zypper::info_messages(&d).join("\n")).unwrap_or_default();
+        let (description, packages) = pattern_details(&messages, &offer.name);
+        let q = pattern_question(&offer, &description, &packages);
+        let default = q.default_choice().map(|c| c.value.clone()).unwrap_or_default();
+        match ask::ask(q).await.unwrap_or(default).as_str() {
+            "pattern" => {
+                for t in targets.iter_mut().filter(|t| **t == offer.name) {
+                    *t = format!("pattern:{}", offer.name);
+                }
+            }
+            "cancel" => bail!("cancelled, nothing was installed"),
+            _ => {}
+        }
+    }
+    Ok(targets)
+}
+
 /// `zypper info` has no structured output, only "Key : value" lines.
 async fn info(ctx: &Context, package: &str) -> Result<Output> {
     let xml = zypper::query(ctx, &["info", "--", package]).await?;
@@ -370,4 +481,67 @@ async fn info(ctx: &Context, package: &str) -> Result<Output> {
         return Ok(Output::Text(format!("No package called '{package}' found in the enabled repositories")));
     }
     Ok(Output::Facts(facts))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Recorded from `zypper --xmlout search --match-exact -t package -t pattern -- hyprland gnome fish`
+    /// on Tumbleweed.
+    const SEARCH: &str = "<?xml version='1.0'?>
+<stream>
+<message type=\"info\">Loading repository data...</message>
+<search-result version=\"0.0\">
+<solvable-list>
+<solvable status=\"not-installed\" name=\"fish\" summary=\"The &quot;friendly interactive shell&quot;\" kind=\"package\"/>
+<solvable status=\"not-installed\" name=\"gnome\" summary=\"GNOME Desktop Environment (Wayland)\" kind=\"pattern\"/>
+<solvable status=\"not-installed\" name=\"hyprland\" summary=\"Dynamic tiling Wayland compositor\" kind=\"package\"/>
+<solvable status=\"not-installed\" name=\"hyprland\" summary=\"Hyprland (Wayland compositor)\" kind=\"pattern\"/>
+<solvable status=\"installed\" name=\"base\" summary=\"Base System\" kind=\"pattern\"/>
+</solvable-list>
+</search-result>
+</stream>";
+
+    /// The info message of `zypper --xmlout info -t pattern hyprland`, shortened.
+    const INFO: &str = "Repository      : openSUSE-Tumbleweed-Oss
+Name            : hyprland
+Summary         : Hyprland (Wayland compositor)
+Description     : 
+    Hyprland is a dynamic tiling Wayland compositor.
+
+    This pattern installs a minimal Hyprland session with common essentials.
+Contents        : 
+    S  | Name                        | Type    | Dependency
+    ---+-----------------------------+---------+------------
+       | pattern:base                | pattern | Required
+       | hyprland                    | package | Required
+       | xdg-desktop-portal-hyprland | package | Required
+       | kitty                       | package | Recommended
+       | rofi-wayland                | package | Recommended";
+
+    #[test]
+    fn patterns_named_like_the_request_are_offered() {
+        let offers = pattern_offers(SEARCH).unwrap();
+        assert_eq!(offers, [
+            PatternOffer { name: "gnome".into(), summary: "GNOME Desktop Environment (Wayland)".into(), package: false },
+            PatternOffer { name: "hyprland".into(), summary: "Hyprland (Wayland compositor)".into(), package: true },
+        ]);
+    }
+
+    #[test]
+    fn the_question_shows_what_the_pattern_brings() {
+        let (description, packages) = pattern_details(INFO, "hyprland");
+        assert_eq!(description, "Hyprland is a dynamic tiling Wayland compositor.\n\nThis pattern installs a minimal Hyprland session with common essentials.");
+        assert_eq!(packages, ["xdg-desktop-portal-hyprland", "kitty", "rofi-wayland"]);
+        let offers = pattern_offers(SEARCH).unwrap();
+        let q = pattern_question(&offers[1], &description, &packages);
+        assert!(q.text.ends_with("besides hyprland: xdg-desktop-portal-hyprland, kitty, rofi-wayland."), "{}", q.text);
+        // Nobody to ask: what was asked for.
+        assert_eq!(q.default_choice().unwrap().value, "package");
+        // No package of that name: the pattern, or nothing.
+        let q = pattern_question(&offers[0], "", &[]);
+        assert_eq!(q.choices.iter().map(|c| c.value.as_str()).collect::<Vec<_>>(), ["pattern", "cancel"]);
+        assert_eq!(q.default_choice().unwrap().value, "pattern");
+    }
 }
