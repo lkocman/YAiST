@@ -83,14 +83,14 @@ pub fn register(reg: &mut Registry) {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Vendor {
+pub(crate) enum Vendor {
     Amd,
     Intel,
     Nvidia,
 }
 
 /// GPUs from /sys (vendor) and, when available, lspci (model names).
-fn gpus() -> Vec<(Vendor, String)> {
+pub(crate) fn gpus() -> Vec<(Vendor, String)> {
     let mut found = Vec::new();
     if let Ok(dir) = std::fs::read_dir("/sys/class/drm") {
         for e in dir.flatten() {
@@ -150,11 +150,11 @@ fn vulkan_rpms(v: Vendor, d: &Distro) -> Vec<&'static str> {
     }
 }
 
-async fn rpm_installed(ctx: &Context, pkg: &str) -> bool {
+pub(crate) async fn rpm_installed(ctx: &Context, pkg: &str) -> bool {
     ctx.exit_code(&["/usr/bin/rpm", "-q", "--quiet", pkg]).await.ok() == Some(0)
 }
 
-async fn nvidia_installed(ctx: &Context) -> bool {
+pub(crate) async fn nvidia_installed(ctx: &Context) -> bool {
     ctx.run(&["/usr/bin/rpm", "-qa", "nvidia-*G0[0-9]*"]).await.map(|o| !o.trim().is_empty()).unwrap_or(false)
 }
 

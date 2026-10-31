@@ -81,21 +81,8 @@ pub fn register(reg: &mut Registry) {
 
     reg.action(ENABLE, |ctx, args| async move {
         let u = unit(args.str("unit"));
-        ctx.call::<_, (bool, Vec<(String, String, String)>)>(
-            SYSTEMD,
-            SYSTEMD_PATH,
-            MANAGER,
-            "EnableUnitFiles",
-            &(vec![u.as_str()], false, false),
-            true,
-        )
-        .await?;
-        ctx.call::<_, ()>(SYSTEMD, SYSTEMD_PATH, MANAGER, "Reload", &(), true).await?;
-        if args.bool("now") {
-            job(&ctx, "StartUnit", &u).await?;
-            return Ok(Output::Done(format!("Enabled and started {u}")));
-        }
-        Ok(Output::Done(format!("Enabled {u}")))
+        enable(&ctx, &u, args.bool("now")).await?;
+        Ok(Output::Done(format!("{} {u}", if args.bool("now") { "Enabled and started" } else { "Enabled" })))
     });
 
     reg.action(DISABLE, |ctx, args| async move {
@@ -132,6 +119,17 @@ fn unit(name: &str) -> String {
     } else {
         format!("{name}.service")
     }
+}
+
+/// Enables a unit at boot (`systemctl enable [--now]`); systemd asks polkit.
+pub(crate) async fn enable(ctx: &Context, unit: &str, now: bool) -> Result<()> {
+    ctx.call::<_, (bool, Vec<(String, String, String)>)>(SYSTEMD, SYSTEMD_PATH, MANAGER, "EnableUnitFiles", &(vec![unit], false, false), true)
+        .await?;
+    ctx.call::<_, ()>(SYSTEMD, SYSTEMD_PATH, MANAGER, "Reload", &(), true).await?;
+    if now {
+        job(ctx, "StartUnit", unit).await?;
+    }
+    Ok(())
 }
 
 async fn job(ctx: &Context, method: &'static str, unit: &str) -> Result<()> {

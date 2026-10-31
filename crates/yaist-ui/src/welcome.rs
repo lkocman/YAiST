@@ -186,6 +186,7 @@ pub fn prompts(module: &str, d: &Distro) -> Vec<&'static str> {
         "selinux" => vec!["Is SELinux enforcing?", "Show recent SELinux denials", "Allow the web server to make network connections", "Which SELinux booleans are on?"],
         "printers" => vec!["Find my printer", "Print a test page", "Set up my HP printer", "Cancel all print jobs"],
         "media" => vec!["Set up Steam", "Set up the graphics driver", "Play all video formats", "What's set up for gaming?"],
+        "assistant" => vec!["Can this computer run the assistant?", "Install the NVIDIA driver", "Make the assistant use my NVIDIA card", "Set up the assistant"],
         "community" => vec!["Where can I chat with other users?", "Any openSUSE events coming up?", "Where do I get help?", "Report a problem"],
         _ => suggestions(d),
     }
