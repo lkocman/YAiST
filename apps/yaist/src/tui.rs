@@ -1002,7 +1002,11 @@ impl App {
                     PlanStatus::Running => {
                         // The latest line of output says what is happening right now.
                         let last = p.log.last().map(|l| format!(" {}", clip(l, width.saturating_sub(16)))).unwrap_or_default();
-                        Line::from(vec![Span::styled(" └ ", self.style(risk)), self.hud("running…", t.muted), Span::styled(last, self.style(t.faint))])
+                        Line::from(vec![
+                            Span::styled(" └ ", self.style(risk)),
+                            self.hud("running…", t.muted),
+                            Span::styled(last, self.style(t.faint)),
+                        ])
                     }
                     PlanStatus::Done(m) => Line::from(vec![
                         Span::styled(" └ ", self.style(t.good)),

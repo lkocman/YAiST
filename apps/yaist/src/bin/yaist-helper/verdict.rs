@@ -175,7 +175,13 @@ fn pending(check: &Check) -> Option<usize> {
     args.extend(["--non-interactive", "--no-refresh", "dup", "--dry-run"]);
     args.extend(check.flags.iter().map(String::as_str));
     println!("==> /usr/bin/zypper {}", args.join(" "));
-    let out = Command::new("/usr/bin/zypper").args(&args).env_clear().env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin").env("LC_ALL", "C.UTF-8").output().ok()?;
+    let out = Command::new("/usr/bin/zypper")
+        .args(&args)
+        .env_clear()
+        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("LC_ALL", "C.UTF-8")
+        .output()
+        .ok()?;
     pending_from(&String::from_utf8_lossy(&out.stdout))
 }
 
@@ -186,7 +192,8 @@ fn pending_from(out: &str) -> Option<usize> {
         return Some(0);
     }
     let summary = out.lines().map(str::trim).find(|l| {
-        l.starts_with(|c: char| c.is_ascii_digit()) && [" to upgrade", " to downgrade", " new", " to remove", " to reinstall"].iter().any(|k| l.contains(k))
+        l.starts_with(|c: char| c.is_ascii_digit())
+            && [" to upgrade", " to downgrade", " new", " to remove", " to reinstall"].iter().any(|k| l.contains(k))
     })?;
     // Vendor and architecture changes are among the upgrades already.
     Some(
@@ -222,11 +229,7 @@ fn kernel_without_initrd() -> Option<String> {
         return None;
     }
     let on_esp = ["/boot/efi", "/efi", "/boot"].iter().filter_map(|esp| std::fs::read_dir(esp).ok()).flatten().flatten().any(|entry| {
-        std::fs::read_dir(entry.path().join(&newest))
-            .into_iter()
-            .flatten()
-            .flatten()
-            .any(|f| f.file_name().to_string_lossy().starts_with("initrd"))
+        std::fs::read_dir(entry.path().join(&newest)).into_iter().flatten().flatten().any(|f| f.file_name().to_string_lossy().starts_with("initrd"))
     });
     (!on_esp).then_some(newest)
 }

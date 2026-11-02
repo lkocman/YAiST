@@ -141,18 +141,49 @@ fn sample_notes() -> Notes {
         online: "https://doc.opensuse.org/release-notes/".into(),
         local: Some(page.into()),
         entries: vec![
-            entry("Upgrade from Leap 16.0", "about upgrading", "leap-upgrade-from-160", "Use the openSUSE migration tool; preview with --dry-run first."),
-            entry("GDM no longer uses the xdm integration", "you have gdm installed", "leap-features-306", "A systemd service from gdm-systemd starts GDM; DISPLAYMANAGER no longer selects it."),
-            entry("PipeWire replaces PulseAudio", "you have pipewire installed", "id-pipewire-replaces-pulseaudio", "Upgrades should move from PulseAudio automatically."),
-            entry("Security update and changes in mount behavior for util-linux", "you have util-linux installed", "jsc-PED-16741", "Non-root mount operations must always use path canonicalization."),
-            entry("Unified systemd service presets between standard and immutable modes", "you have systemd installed", "jsc-PED-16083", "Several service presets are newly enabled by default."),
-            entry("Distrobox pre-installed by default", "you have distrobox installed", "jsc-PED-16282", "distrobox replaces the older toolbox utility."),
+            entry(
+                "Upgrade from Leap 16.0",
+                "about upgrading",
+                "leap-upgrade-from-160",
+                "Use the openSUSE migration tool; preview with --dry-run first.",
+            ),
+            entry(
+                "GDM no longer uses the xdm integration",
+                "you have gdm installed",
+                "leap-features-306",
+                "A systemd service from gdm-systemd starts GDM; DISPLAYMANAGER no longer selects it.",
+            ),
+            entry(
+                "PipeWire replaces PulseAudio",
+                "you have pipewire installed",
+                "id-pipewire-replaces-pulseaudio",
+                "Upgrades should move from PulseAudio automatically.",
+            ),
+            entry(
+                "Security update and changes in mount behavior for util-linux",
+                "you have util-linux installed",
+                "jsc-PED-16741",
+                "Non-root mount operations must always use path canonicalization.",
+            ),
+            entry(
+                "Unified systemd service presets between standard and immutable modes",
+                "you have systemd installed",
+                "jsc-PED-16083",
+                "Several service presets are newly enabled by default.",
+            ),
+            entry(
+                "Distrobox pre-installed by default",
+                "you have distrobox installed",
+                "jsc-PED-16282",
+                "distrobox replaces the older toolbox utility.",
+            ),
         ],
         total: 107,
     }
 }
 
-const SAMPLE_SUMMARY: &str = "- GDM now starts from its own systemd service. Setting DISPLAYMANAGER no longer picks it; if GDM should stay your login screen, nothing to do.
+const SAMPLE_SUMMARY: &str =
+    "- GDM now starts from its own systemd service. Setting DISPLAYMANAGER no longer picks it; if GDM should stay your login screen, nothing to do.
 - Sound moves from PulseAudio to PipeWire on its own. If audio is silent after the reboot, check that the wireplumber-video-only profile isn't in use.
 - Some services are now enabled by default, the same way on standard and immutable systems. Check that nothing starts that you don't want.
 - Mounting as a normal user is stricter (a util-linux security fix). Scripts that mount through symlinks may need full paths.

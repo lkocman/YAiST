@@ -177,16 +177,28 @@ pub fn prompts(module: &str, d: &Distro) -> Vec<&'static str> {
         "system" => vec!["What time zone am I in?", "Change the hostname", "Keep the clock in sync", "Reboot the computer"],
         "packages" => vec!["Is my system up to date?", "Install VLC", "Find a PDF editor", "Which Flatpak apps do I have?"],
         "repos" => vec!["Which repositories do I have?", "Add Flathub", "Enable the non-OSS repository", "Add the games repository from OBS"],
-        "snapshots" => vec!["Take a snapshot before I update", "What changed in the last snapshot?", "Roll back to yesterday's snapshot", "Which snapshots do I have?"],
+        "snapshots" => vec![
+            "Take a snapshot before I update",
+            "What changed in the last snapshot?",
+            "Roll back to yesterday's snapshot",
+            "Which snapshots do I have?",
+        ],
         "upgrade" if leap => vec!["Is there a newer Leap?", "Upgrade to the next Leap", "Switch to Tumbleweed", "Move to SUSE Linux Enterprise"],
         "upgrade" => vec!["Where can I upgrade to?", "Update the system"],
         "services" => vec!["Which services failed?", "Is sshd running?", "Restart the printing service", "Which services start at boot?"],
         "firewall" => vec!["Open port 8080 for my dev server", "Allow SSH through the firewall", "Which ports are open?", "What else can I allow?"],
         "users" => vec!["Who has an account here?", "Who can use sudo?", "Let my nephew tom log in, without sudo", "Which groups am I in?"],
-        "selinux" => vec!["Is SELinux enforcing?", "Show recent SELinux denials", "Allow the web server to make network connections", "Which SELinux booleans are on?"],
+        "selinux" => vec![
+            "Is SELinux enforcing?",
+            "Show recent SELinux denials",
+            "Allow the web server to make network connections",
+            "Which SELinux booleans are on?",
+        ],
         "printers" => vec!["Find my printer", "Print a test page", "Set up my HP printer", "Cancel all print jobs"],
         "media" => vec!["Set up Steam", "Set up the graphics driver", "Play all video formats", "What's set up for gaming?"],
-        "assistant" => vec!["Can this computer run the assistant?", "Install the NVIDIA driver", "Make the assistant use my NVIDIA card", "Set up the assistant"],
+        "assistant" => {
+            vec!["Can this computer run the assistant?", "Install the NVIDIA driver", "Make the assistant use my NVIDIA card", "Set up the assistant"]
+        }
         "community" => vec!["Where can I chat with other users?", "Any openSUSE events coming up?", "Where do I get help?", "Report a problem"],
         _ => suggestions(d),
     }

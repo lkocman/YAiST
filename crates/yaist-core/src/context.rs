@@ -366,12 +366,7 @@ async fn run_command(argv: &[&str], ok: &[i32], show: bool) -> Result<String> {
     let (prog, rest) = argv.split_first().ok_or_else(|| anyhow!("empty command"))?;
     record(argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
     let mut cmd = tokio::process::Command::new(prog);
-    cmd.args(rest)
-        .env_clear()
-        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
-        .env("LC_ALL", "C.UTF-8")
-        .stdin(Stdio::null())
-        .kill_on_drop(true);
+    cmd.args(rest).env_clear().env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin").env("LC_ALL", "C.UTF-8").stdin(Stdio::null()).kill_on_drop(true);
     let (status, stdout, stderr) = if show && crate::log::active() {
         streamed(cmd).await
     } else {

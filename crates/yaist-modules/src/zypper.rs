@@ -649,10 +649,19 @@ mod tests {
     #[test]
     fn steps_for_the_log() {
         use super::log_text;
-        assert_eq!(log_text("<message type=\"info\">Retrieving: hello-2.12.1 (repo-oss (16.0)) (1/1),  60.8 KiB    </message>").as_deref(), Some("Retrieving: hello-2.12.1 (repo-oss (16.0)) (1/1),  60.8 KiB"));
-        assert_eq!(log_text("<progress id=\"install-resolvable\" name=\"(1/1) Installing: hello-2.12.1\"/>").as_deref(), Some("(1/1) Installing: hello-2.12.1"));
+        assert_eq!(
+            log_text("<message type=\"info\">Retrieving: hello-2.12.1 (repo-oss (16.0)) (1/1),  60.8 KiB    </message>").as_deref(),
+            Some("Retrieving: hello-2.12.1 (repo-oss (16.0)) (1/1),  60.8 KiB")
+        );
+        assert_eq!(
+            log_text("<progress id=\"install-resolvable\" name=\"(1/1) Installing: hello-2.12.1\"/>").as_deref(),
+            Some("(1/1) Installing: hello-2.12.1")
+        );
         assert_eq!(log_text("<progress id=\"install-resolvable\" name=\"(1/1) Installing: hello-2.12.1\" value=\"0\"/>"), None);
-        assert_eq!(log_text("<progress id=\"12\" name=\"Building repository &apos;repo-oss&apos; cache\"/>").as_deref(), Some("Building repository 'repo-oss' cache"));
+        assert_eq!(
+            log_text("<progress id=\"12\" name=\"Building repository &apos;repo-oss&apos; cache\"/>").as_deref(),
+            Some("Building repository 'repo-oss' cache")
+        );
         assert_eq!(log_text("<solvable type=\"package\" name=\"hello\"/>"), None);
     }
 

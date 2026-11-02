@@ -1711,16 +1711,16 @@ fn log_block(ui: &mut Ui, p: &Plan) {
     Frame::new().fill(t.sunken).inner_margin(Margin::symmetric(10, 7)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 0.0;
-        egui::ScrollArea::vertical()
-            .id_salt(("log", p.id))
-            .max_height(row * 12.0)
-            .auto_shrink([false, true])
-            .stick_to_bottom(true)
-            .show_rows(ui, row, p.log.len(), |ui, rows| {
+        egui::ScrollArea::vertical().id_salt(("log", p.id)).max_height(row * 12.0).auto_shrink([false, true]).stick_to_bottom(true).show_rows(
+            ui,
+            row,
+            p.log.len(),
+            |ui, rows| {
                 for line in &p.log[rows] {
                     ui.add(egui::Label::new(RichText::new(line).font(font.clone()).color(t.muted)).truncate());
                 }
-            });
+            },
+        );
     });
 }
 

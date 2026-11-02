@@ -12,8 +12,8 @@ use yaist_core::ask::{self, Question};
 use yaist_core::log;
 use yaist_core::{command, ActionSpec, Context, Registry, Risk};
 
-use crate::text_size::{self, Change};
 use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus, LOG_LINES};
+use crate::text_size::{self, Change};
 
 /// Where the output of changes is kept, under $XDG_STATE_HOME (or
 /// ~/.local/state): one file per change, the newest [`LOGS_KEPT`].
@@ -637,7 +637,18 @@ impl Jobs {
             self.call_ids.insert(id, c);
         }
         self.pending.push_back(id);
-        self.sh.push(Entry::Plan(Plan { id, spec, args, command, shell, executed: Vec::new(), log: Arc::default(), log_file: None, status: PlanStatus::Pending, from_agent }));
+        self.sh.push(Entry::Plan(Plan {
+            id,
+            spec,
+            args,
+            command,
+            shell,
+            executed: Vec::new(),
+            log: Arc::default(),
+            log_file: None,
+            status: PlanStatus::Pending,
+            from_agent,
+        }));
         self.sh.focus_module(spec.module());
     }
 

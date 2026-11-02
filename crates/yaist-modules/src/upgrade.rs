@@ -155,7 +155,9 @@ fn migrate_shell(target: &str, keep: &str, d: &Distro) -> Vec<String> {
                 format!("{z} install --repo tmp --from tmp --force-resolution {pkg}"),
                 format!("{z} removerepo tmp"),
                 format!("{z} refresh-services"),
-                format!("{z} --releasever {v} dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet"),
+                format!(
+                    "{z} --releasever {v} dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet"
+                ),
                 format!("{z} --releasever {v} --no-refresh dup --force-resolution --allow-vendor-change"),
                 format!(
                     "{z} --releasever {v} --no-refresh install --force-resolution {}   # the target's release package",

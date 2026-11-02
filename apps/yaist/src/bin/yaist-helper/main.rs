@@ -353,7 +353,8 @@ fn snapshot_before(tx: bool, description: &str, continuing: bool) -> R {
         }
         return Ok(());
     }
-    let args = ["-c", "root", "create", "--description", description, "--cleanup-algorithm", "number", "--print-number", "--userdata", "important=yes"];
+    let args =
+        ["-c", "root", "create", "--description", description, "--cleanup-algorithm", "number", "--print-number", "--userdata", "important=yes"];
     println!("==> /usr/bin/snapper {}", args.join(" "));
     let out = Command::new("/usr/bin/snapper")
         .args(args)
@@ -380,7 +381,12 @@ fn snapshot_named(description: &str) -> Option<u32> {
         .env("LC_ALL", "C.UTF-8")
         .output()
         .ok()?;
-    String::from_utf8_lossy(&out.stdout).lines().filter_map(|l| l.split_once('\t')).filter(|(_, d)| *d == description).filter_map(|(n, _)| n.parse().ok()).max()
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|l| l.split_once('\t'))
+        .filter(|(_, d)| *d == description)
+        .filter_map(|(n, _)| n.parse().ok())
+        .max()
 }
 
 /// A distribution upgrade as two zypper runs: first everything is
@@ -396,7 +402,8 @@ fn dup_steps<'a>(global: &[&'a str], flags: &[&'a str]) -> [Vec<&'a str>; 2] {
 /// The install step of an upgrade (see [`dup_steps`]), judged by
 /// [`verdict::install`] against what it should produce.
 fn install_step(tx: bool, args: &[&str], check: verdict::Check) -> R {
-    let mut full = if tx { vec!["--non-interactive", "--continue", "run", "/usr/bin/zypper", "--non-interactive"] } else { vec!["--non-interactive"] };
+    let mut full =
+        if tx { vec!["--non-interactive", "--continue", "run", "/usr/bin/zypper", "--non-interactive"] } else { vec!["--non-interactive"] };
     full.extend_from_slice(args);
     verdict::install(check, if tx { "/usr/sbin/transactional-update" } else { "/usr/bin/zypper" }, &full)
 }

@@ -83,11 +83,8 @@ impl Agent {
     }
 
     pub fn push_user(&mut self, text: &str) {
-        let content = if self.notes.is_empty() {
-            text.to_owned()
-        } else {
-            format!("(Meanwhile: {})\n\n{text}", std::mem::take(&mut self.notes).join(" "))
-        };
+        let content =
+            if self.notes.is_empty() { text.to_owned() } else { format!("(Meanwhile: {})\n\n{text}", std::mem::take(&mut self.notes).join(" ")) };
         self.history.push(json!({ "role": "user", "content": content }));
         self.trim();
     }

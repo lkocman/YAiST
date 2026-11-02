@@ -523,16 +523,22 @@ Contents        :
     #[test]
     fn patterns_named_like_the_request_are_offered() {
         let offers = pattern_offers(SEARCH).unwrap();
-        assert_eq!(offers, [
-            PatternOffer { name: "gnome".into(), summary: "GNOME Desktop Environment (Wayland)".into(), package: false },
-            PatternOffer { name: "hyprland".into(), summary: "Hyprland (Wayland compositor)".into(), package: true },
-        ]);
+        assert_eq!(
+            offers,
+            [
+                PatternOffer { name: "gnome".into(), summary: "GNOME Desktop Environment (Wayland)".into(), package: false },
+                PatternOffer { name: "hyprland".into(), summary: "Hyprland (Wayland compositor)".into(), package: true },
+            ]
+        );
     }
 
     #[test]
     fn the_question_shows_what_the_pattern_brings() {
         let (description, packages) = pattern_details(INFO, "hyprland");
-        assert_eq!(description, "Hyprland is a dynamic tiling Wayland compositor.\n\nThis pattern installs a minimal Hyprland session with common essentials.");
+        assert_eq!(
+            description,
+            "Hyprland is a dynamic tiling Wayland compositor.\n\nThis pattern installs a minimal Hyprland session with common essentials."
+        );
         assert_eq!(packages, ["xdg-desktop-portal-hyprland", "kitty", "rofi-wayland"]);
         let offers = pattern_offers(SEARCH).unwrap();
         let q = pattern_question(&offers[1], &description, &packages);

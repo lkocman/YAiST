@@ -179,7 +179,10 @@ pub async fn load(ctx: &Context, target: &Target) -> Notes {
         }
         let other_product = matches!((target, doc), (Target::Leap(_), Doc::Sles(_)));
         let caveat = other_product.then(|| {
-            format!("{release}'s own notes aren't published yet; these are from {}, which {release} is built on.", doc.name().trim_end_matches(" release notes"))
+            format!(
+                "{release}'s own notes aren't published yet; these are from {}, which {release} is built on.",
+                doc.name().trim_end_matches(" release notes")
+            )
         });
         // Notes that came only from this machine may not be online yet:
         // entries link into the local copy, "online" to the list of notes.
@@ -430,7 +433,8 @@ impl Facts {
                 }
             }
         }
-        let desktops = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().split(':').map(|d| d.trim().to_lowercase()).filter(|d| !d.is_empty()).collect();
+        let desktops =
+            std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().split(':').map(|d| d.trim().to_lowercase()).filter(|d| !d.is_empty()).collect();
         let packages = ctx.run(&["/usr/bin/rpm", "-qa", "--qf", "%{NAME}\\n"]).await.unwrap_or_default().lines().map(str::to_owned).collect();
         Facts { arch: std::env::consts::ARCH.to_owned(), gpus, desktops, packages }
     }
@@ -438,10 +442,62 @@ impl Facts {
 
 /// Words in titles that are package names too, but say nothing about one.
 const NOT_PACKAGES: &[&str] = &[
-    "about", "added", "and", "available", "boot", "change", "changes", "data", "default", "error", "file", "files", "for", "group", "image", "images",
-    "info", "filesystem", "format", "install", "installation", "legacy", "less", "minimal", "library", "login", "make", "messages", "mode", "network", "new", "not", "notes", "now", "package",
-    "packages", "release", "removal", "screen", "server", "support", "system", "systems", "the", "time", "tool", "tools", "update", "updated", "updates",
-    "user", "users", "using", "version", "which", "with",
+    "about",
+    "added",
+    "and",
+    "available",
+    "boot",
+    "change",
+    "changes",
+    "data",
+    "default",
+    "error",
+    "file",
+    "files",
+    "for",
+    "group",
+    "image",
+    "images",
+    "info",
+    "filesystem",
+    "format",
+    "install",
+    "installation",
+    "legacy",
+    "less",
+    "minimal",
+    "library",
+    "login",
+    "make",
+    "messages",
+    "mode",
+    "network",
+    "new",
+    "not",
+    "notes",
+    "now",
+    "package",
+    "packages",
+    "release",
+    "removal",
+    "screen",
+    "server",
+    "support",
+    "system",
+    "systems",
+    "the",
+    "time",
+    "tool",
+    "tools",
+    "update",
+    "updated",
+    "updates",
+    "user",
+    "users",
+    "using",
+    "version",
+    "which",
+    "with",
 ];
 
 /// Names followed by a version in titles that are not packages.
@@ -528,11 +584,10 @@ fn relevant(sections: &[Section], facts: &Facts, for_leap: bool, page: &str) -> 
             Some((0, "about upgrading".into()))
         } else if own_arch {
             Some((1, format!("for {} machines", facts.arch)))
-        } else if let Some((_, _, what)) =
-            gpu_names.iter().find(|(gpu, words, _)| facts.gpus.contains(gpu) && words.iter().any(|w| has(&title, w)))
-        {
+        } else if let Some((_, _, what)) = gpu_names.iter().find(|(gpu, words, _)| facts.gpus.contains(gpu) && words.iter().any(|w| has(&title, w))) {
             Some((1, format!("you have {what}")))
-        } else if let Some((_, _, what)) = desktop_names.iter().find(|(d, words, _)| facts.desktops.iter().any(|x| x == d) && words.iter().any(|w| has(&title, w)))
+        } else if let Some((_, _, what)) =
+            desktop_names.iter().find(|(d, words, _)| facts.desktops.iter().any(|x| x == d) && words.iter().any(|w| has(&title, w)))
         {
             Some((2, format!("you use {what}")))
         } else {
@@ -628,7 +683,17 @@ mod tests {
     fn leap_sections() {
         let s = parse(LEAP);
         let titles: Vec<&str> = s.iter().map(|s| s.title.as_str()).collect();
-        assert_eq!(titles, ["General", "Migration from Leap 15.6", "Automated NVIDIA Driver and Repository Setup", "PipeWire replaces PulseAudio", "Hexchat drop", "IBM Z-specific changes (s390x)"]);
+        assert_eq!(
+            titles,
+            [
+                "General",
+                "Migration from Leap 15.6",
+                "Automated NVIDIA Driver and Repository Setup",
+                "PipeWire replaces PulseAudio",
+                "Hexchat drop",
+                "IBM Z-specific changes (s390x)"
+            ]
+        );
         assert_eq!(s[1].id, "id-migration");
         assert_eq!(s[1].parents, ["openSUSE Leap Release Notes", "General"]);
         assert_eq!(s[1].text, "Use opensuse-migration-tool to move from Leap 15.6 & keep your data.");
@@ -641,7 +706,16 @@ mod tests {
     fn sles_sections() {
         let s = parse(SLES);
         let titles: Vec<&str> = s.iter().map(|s| s.title.as_str()).collect();
-        assert_eq!(titles, ["Support and lifecycle", "SMB over QUIC support in Samba (technology preview)", "Changes affecting all architectures", "PHP updated to version 8.5", "SAP patterns updated"]);
+        assert_eq!(
+            titles,
+            [
+                "Support and lifecycle",
+                "SMB over QUIC support in Samba (technology preview)",
+                "Changes affecting all architectures",
+                "PHP updated to version 8.5",
+                "SAP patterns updated"
+            ]
+        );
         assert_eq!(s[3].id, "jsc-PED-2");
     }
 
@@ -696,7 +770,10 @@ mod tests {
 
     #[test]
     fn urls_and_targets() {
-        assert_eq!(Doc::Leap("16.0".into()).url(), "https://doc.opensuse.org/release-notes/x86_64/openSUSE/Leap/16.0/html/release-notes-leap-160/index.html");
+        assert_eq!(
+            Doc::Leap("16.0".into()).url(),
+            "https://doc.opensuse.org/release-notes/x86_64/openSUSE/Leap/16.0/html/release-notes-leap-160/index.html"
+        );
         assert_eq!(Doc::Sles("16.1".into()).url(), "https://documentation.suse.com/releasenotes/sles/html/releasenotes_sles_16.1/index.html");
         assert_eq!(Target::of_upgrade("leap:16.1"), Some(Target::Leap("16.1".into())));
         assert_eq!(Target::of_upgrade("tumbleweed"), None);
