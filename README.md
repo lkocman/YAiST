@@ -4,7 +4,7 @@
 
 # YAiST
 
-A local, AI-assisted successor to YaST for openSUSE. Manage the system by
+A local, AI-assisted alternative to YaST for openSUSE. Manage the system by
 asking in plain language, by typing `/commands`, or in classic panels. All
 three run the same actions, and every change waits for your confirmation.
 
