@@ -117,7 +117,10 @@ This rewrites the blocks, adds a stub section (marked `TODO(handbook)`) for
 a new action and a stub chapter for a new module, which you then add to the
 book. `cargo test` fails while the handbook is out of date.
 `scripts/build-handbook.sh [pdf] [epub] [html]` builds the book into
-`target/handbook`.
+`target/handbook` (in a container; `scripts/handbook-build.sh` is the build
+itself, shared with CI). The Handbook workflow builds it for every push and
+pull request, publishes it on GitHub Pages from main and attaches the PDF
+and EPUB to published releases.
 
 ## Layout
 

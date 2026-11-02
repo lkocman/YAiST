@@ -96,6 +96,11 @@ and `/commands` work and the conversation says how to start it.
 
 ## More
 
+- [The openSUSE Handbook](https://lkocman.github.io/YAiST/) (also as
+  [PDF](https://lkocman.github.io/YAiST/opensuse-handbook.pdf) and
+  [EPUB](https://lkocman.github.io/YAiST/opensuse-handbook.epub)): every
+  operation in YAiST, by asking the assistant and in the terminal; source in
+  [docs/handbook](docs/handbook)
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): running from source, the
   command line, privileges, configuration, demos and screenshots
 - [PLAN.md](PLAN.md): the design

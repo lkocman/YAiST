@@ -1,0 +1,76 @@
+name: Handbook
+
+# Builds the openSUSE Handbook (docs/handbook) as PDF, EPUB and HTML on every
+# push and pull request; from main it is published on GitHub Pages, and a
+# published release gets the PDF and EPUB attached. Whether the generated
+# parts match the code is checked by the tests in CI.
+#
+# Setup, once: Settings → Pages → Build and deployment → Source:
+# "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: handbook-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (PDF, EPUB, HTML)
+    runs-on: ubuntu-latest
+    container: registry.opensuse.org/opensuse/tumbleweed:latest
+    steps:
+      - name: Install checkout tools
+        run: zypper -n --gpg-auto-import-keys install --no-recommends tar gzip
+      - uses: actions/checkout@v7
+      - name: Build
+        run: scripts/handbook-build.sh --install target/handbook
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opensuse-handbook
+          path: target/handbook
+      - uses: actions/upload-pages-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          path: target/handbook
+
+  pages:
+    name: Publish on GitHub Pages
+    needs: build
+    if: github.repository == 'lkocman/YAiST' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  release:
+    name: Attach to the release
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: opensuse-handbook
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" opensuse-handbook.pdf opensuse-handbook.epub --clobber --repo "$GITHUB_REPOSITORY"
