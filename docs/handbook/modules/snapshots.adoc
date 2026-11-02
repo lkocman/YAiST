@@ -1,0 +1,145 @@
+[[snapshots]]
+== Snapshots
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== List snapshots
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED snapshots.list -- written by `yaist docs` from the module's code; edit the code, not this block
+[[snapshots.list]]
+[.operation]
+****
+List snapper snapshots of the root filesystem, newest first.
+
+*Command:* `/snapshots list` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+sudo snapper list
+----
+****
+// END GENERATED
+
+=== Changes since
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED snapshots.changes -- written by `yaist docs` from the module's code; edit the code, not this block
+[[snapshots.changes]]
+[.operation]
+****
+Show which files changed between a snapshot and the running system.
+
+*Command:* `/snapshots changes NUMBER` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`number`:: Snapshot number, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+sudo snapper status NUMBER..0
+----
+****
+// END GENERATED
+
+=== Create snapshot
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED snapshots.create -- written by `yaist docs` from the module's code; edit the code, not this block
+[[snapshots.create]]
+[.operation]
+****
+Take a snapshot of the root filesystem now, e.g. before risky changes.
+
+*Command:* `/snapshots create DESCRIPTION` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`description`:: What the snapshot is for (required)
+
+.In the terminal
+[source,shell]
+----
+sudo snapper create --description DESCRIPTION
+----
+****
+// END GENERATED
+
+=== Delete
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED snapshots.delete -- written by `yaist docs` from the module's code; edit the code, not this block
+[[snapshots.delete]]
+[.operation]
+****
+Delete a snapshot. It can no longer be rolled back to.
+
+*Command:* `/snapshots delete NUMBER` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`number`:: Snapshot number, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+sudo snapper delete NUMBER
+----
+****
+// END GENERATED
+
+=== Roll back
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED snapshots.rollback -- written by `yaist docs` from the module's code; edit the code, not this block
+[[snapshots.rollback]]
+[.operation]
+****
+Make a snapshot the system that boots next (snapper rollback). Takes effect after a reboot; the current state stays available as a snapshot.
+
+*Command:* `/snapshots rollback NUMBER` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`number`:: Snapshot number, as listed (required)
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo snapper rollback NUMBER
+sudo reboot
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update rollback NUMBER
+sudo reboot
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED snapshots -- written by `yaist docs` from the module's code; edit the code, not this block
+[[snapshots-at-a-glance]]
+=== Snapshots at a glance
+
+.Snapshots: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<snapshots.list,List snapshots>> |`/snapshots list` |straight away
+|<<snapshots.changes,Changes since>> |`/snapshots changes NUMBER` |straight away
+|<<snapshots.create,Create snapshot>> |`/snapshots create DESCRIPTION` |after you confirm
+|<<snapshots.delete,Delete>> |`/snapshots delete NUMBER` |after you confirm (hard to undo)
+|<<snapshots.rollback,Roll back>> |`/snapshots rollback NUMBER` |after you confirm (hard to undo)
+|===
+// END GENERATED

@@ -65,3 +65,12 @@ path = ["assets/fonts/GeistMono-Variable.ttf", "assets/fonts/OFL-GeistMono.txt"]
 precedence = "override"
 SPDX-FileCopyrightText = "2024 The Geist Project Authors (https://github.com/vercel/geist-font)"
 SPDX-License-Identifier = "OFL-1.1"
+
+# The openSUSE Handbook: text under CC-BY-SA-4.0, so chapters can be reused in
+# other openSUSE documentation with credit, and what is built on them stays
+# open too.
+[[annotations]]
+path = "docs/handbook/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 The YAiST contributors"
+SPDX-License-Identifier = "CC-BY-SA-4.0"

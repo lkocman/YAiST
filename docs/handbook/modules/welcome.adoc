@@ -1,0 +1,87 @@
+[[welcome]]
+== Meet YAiST
+
+YAiST is a system tool for openSUSE. It brings the everyday jobs of
+looking after a computer into one window: software, users, the firewall,
+services, snapshots, printers and upgrades to the next release. It is
+built to teach as much as to do: every change shows the commands it
+stands for.
+
+In this chapter you will learn:
+
+* how the YAiST window is laid out,
+* how YAiST asks before it changes anything,
+* where to find what it did afterwards.
+
+.Before you start
+* openSUSE Tumbleweed, Slowroll, Leap 16 or one of their immutable
+  variants such as Aeon or Leap Micro. YAiST adapts its commands to each.
+* An account that may become administrator. YAiST asks for the
+  administrator password only when an operation needs it.
+
+[[welcome-window]]
+=== The window
+
+.YAiST on openSUSE Tumbleweed
+image::welcome.png[The YAiST window: modules on the left, updates and starting points in the middle, the assistant's conversation on the right]
+
+The window has three columns:
+
+The sidebar:: One entry, or *module*, for each part of the system. Each
+chapter of this handbook covers one module, under the same name.
+The panel:: What the selected module shows: a table of users, services or
+firewall rules, with buttons for what you can do. Buttons on a row act on
+that row.
+The conversation:: Where you talk to the assistant, and where YAiST shows
+plans, progress and results. You can also type commands here, such as
+`/firewall overview` or `/help`, and familiar terminal commands like
+`zypper in fish` are understood too.
+
+To make the text bigger, for screen sharing or reading comfort, use the
+*A-* and *A+* buttons in the header, kbd:[Ctrl+Plus] and kbd:[Ctrl+Minus],
+or kbd:[Ctrl+0] to go back to normal. YAiST remembers the size.
+
+[[welcome-plans]]
+=== Plans: nothing changes until you confirm
+
+Operations that only read the system run straight away. Operations that
+change it, whether you pressed a button, typed a command or asked the
+assistant, first show a *plan card*:
+
+* what will be done, with the values filled in,
+* the terminal commands it stands for,
+* *Confirm*, *Edit* and *Cancel*.
+
+Plans for changes that are hard to undo, or that change what the system
+trusts, such as removing a user or adding a repository, are marked in red.
+Read those twice.
+
+While a change runs, its output appears live below the plan. If the
+change asks something on the way, such as which solution to pick when
+packages conflict, YAiST asks you in the window.
+
+[[welcome-logs]]
+=== What happened
+
+Each change leaves a log in `~/.local/state/yaist/logs`: the commands
+that ran, their output, and the questions you answered. If something
+fails, YAiST offers to prepare a bug report from it; see <<community>>.
+
+[[welcome-terminal]]
+=== YAiST in a terminal
+
+The same modules work without a desktop. `yaist` starts YAiST in the
+terminal, over SSH for example, and `yaist run` runs a single command:
+
+[source,shell]
+----
+yaist run /firewall overview
+yaist run /firewall open-port 8080 --yes
+----
+
+Changes need `--yes`; without it, `yaist run` says what it would do and stops.
+`yaist help` lists every command, and `yaist help firewall` those of one
+module.
+
+// BEGIN GENERATED welcome -- written by `yaist docs` from the module's code; edit the code, not this block
+// END GENERATED

@@ -99,6 +99,26 @@ The GUI takes one shot and quits when told:
 | `YAIST_DEMO_CLICK` | `x,y[,clicks[,seconds]]` clicks there (2 for a double-click), after 2 seconds or as given |
 | `YAIST_DEMO_SCENE` | shows a demo scene at start, without the `/demo` line |
 
+## The openSUSE Handbook
+
+`docs/handbook` is a book (AsciiDoc, CC-BY-SA-4.0) with one chapter per
+module, `modules/<module>.adoc`, included from `opensuse-handbook.adoc`.
+Chapters are written by hand, except blocks between
+`// BEGIN GENERATED <key>` and `// END GENERATED`: one per action (what it
+does, whether it asks first, its options, the terminal commands on each
+flavour) and one per module (the at-a-glance table). They are rendered from
+the `ActionSpec`s and `reg.shell` equivalents, so after changing an action:
+
+```sh
+scripts/build-in-container.sh run -p yaist --bin yaist -- docs
+```
+
+This rewrites the blocks, adds a stub section (marked `TODO(handbook)`) for
+a new action and a stub chapter for a new module, which you then add to the
+book. `cargo test` fails while the handbook is out of date.
+`scripts/build-handbook.sh [pdf] [epub] [html]` builds the book into
+`target/handbook`.
+
 ## Layout
 
 ```
@@ -108,4 +128,5 @@ crates/yaist-agent     llama-server client and tool-calling agent
 crates/yaist-ui        shared client model (state, plans, forms, palette, demos)
 apps/yaist             TUI + CLI
 apps/yaist-gui         egui desktop app
+docs/handbook          the openSUSE Handbook, one chapter per module
 ```

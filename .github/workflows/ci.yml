@@ -75,6 +75,30 @@ jobs:
         with:
           command: check advisories
 
+  handbook:
+    # The generated parts are checked by the tests; this builds the book.
+    name: Handbook (PDF, EPUB, HTML)
+    runs-on: ubuntu-latest
+    container: registry.opensuse.org/opensuse/tumbleweed:latest
+    steps:
+      - name: Install toolchain
+        run: |
+          zypper -n --gpg-auto-import-keys install --no-recommends ruby ruby-devel "rubygem(asciidoctor)" "rubygem(rouge)" gcc make inter-fonts python3-fonttools tar gzip
+          gem install --no-document --bindir /usr/local/bin --no-format-executable asciidoctor-pdf asciidoctor-epub3
+      - uses: actions/checkout@v7
+      - name: Build
+        working-directory: docs/handbook
+        run: |
+          python3 ../../scripts/handbook-fonts.py /tmp/fonts
+          asciidoctor-pdf --failure-level WARN -a pdf-fontsdir="/tmp/fonts;GEM_FONTS_DIR" -o ../../target/handbook/opensuse-handbook.pdf opensuse-handbook.adoc
+          asciidoctor-epub3 --failure-level WARN -a ebook-validate! -o ../../target/handbook/opensuse-handbook.epub opensuse-handbook.adoc
+          asciidoctor --failure-level WARN -a imagesdir=screenshots -o ../../target/handbook/index.html opensuse-handbook.adoc
+          cp -r ../screenshots ../../target/handbook/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opensuse-handbook
+          path: target/handbook
+
   reuse:
     name: REUSE compliance
     runs-on: ubuntu-latest

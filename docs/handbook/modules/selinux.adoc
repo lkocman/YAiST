@@ -1,0 +1,139 @@
+[[selinux]]
+== SELinux
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Booleans
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED selinux.booleans -- written by `yaist docs` from the module's code; edit the code, not this block
+[[selinux.booleans]]
+[.operation]
+****
+List SELinux booleans (policy switches such as httpd_can_network_connect) and their values.
+
+*Command:* `/selinux booleans` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`filter`:: Only booleans containing this text (optional)
+
+.In the terminal
+[source,shell]
+----
+getsebool -a
+----
+****
+// END GENERATED
+
+=== Status
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED selinux.status -- written by `yaist docs` from the module's code; edit the code, not this block
+[[selinux.status]]
+[.operation]
+****
+Show whether SELinux is enabled, its current and configured mode, and the policy.
+
+*Command:* `/selinux status` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+sestatus
+----
+****
+// END GENERATED
+
+=== Recent denials
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED selinux.denials -- written by `yaist docs` from the module's code; edit the code, not this block
+[[selinux.denials]]
+[.operation]
+****
+Show recent SELinux AVC denials from the audit log. Use this when something fails with 'permission denied' and SELinux may be the cause.
+
+*Command:* `/selinux denials` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`limit`:: How many denials to show (default: `10`)
+
+.In the terminal
+[source,shell]
+----
+sudo ausearch --message avc --start recent
+----
+****
+// END GENERATED
+
+=== Set boolean
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED selinux.set_boolean -- written by `yaist docs` from the module's code; edit the code, not this block
+[[selinux.set_boolean]]
+[.operation]
+****
+Turn an SELinux boolean on or off.
+
+*Command:* `/selinux set-boolean BOOLEAN false` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`boolean`:: Boolean name, e.g. httpd_can_network_connect (required)
+`value`:: On (true) or off (false) (required)
+`persistent`:: Keep the setting after reboot (default: `true`)
+
+.In the terminal
+[source,shell]
+----
+sudo setsebool -P BOOLEAN off
+----
+****
+// END GENERATED
+
+=== Set mode
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED selinux.set_mode -- written by `yaist docs` from the module's code; edit the code, not this block
+[[selinux.set_mode]]
+[.operation]
+****
+Switch SELinux between enforcing and permissive until the next reboot. Permissive only logs denials and weakens security.
+
+*Command:* `/selinux set-mode enforcing` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`mode`:: New mode: `enforcing`, `permissive` (required)
+
+.In the terminal
+[source,shell]
+----
+sudo setenforce 1
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED selinux -- written by `yaist docs` from the module's code; edit the code, not this block
+[[selinux-at-a-glance]]
+=== SELinux at a glance
+
+.SELinux: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<selinux.booleans,Booleans>> |`/selinux booleans` |straight away
+|<<selinux.status,Status>> |`/selinux status` |straight away
+|<<selinux.denials,Recent denials>> |`/selinux denials` |straight away
+|<<selinux.set_boolean,Set boolean>> |`/selinux set-boolean BOOLEAN false` |after you confirm
+|<<selinux.set_mode,Set mode>> |`/selinux set-mode enforcing` |after you confirm (hard to undo)
+|===
+// END GENERATED

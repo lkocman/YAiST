@@ -1,0 +1,192 @@
+[[users]]
+== Users
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== List users
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.list -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.list]]
+[.operation]
+****
+List local human user accounts (UID 1000 and above): whether they are administrators, and their groups.
+
+*Command:* `/users list` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+getent passwd
+getent group wheel
+----
+****
+// END GENERATED
+
+=== Add user
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.create -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.create]]
+[.operation]
+****
+Create a local user account with a home directory. The account stays locked until a password is set.
+
+*Command:* `/users create USERNAME` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`username`:: Login name, lowercase, e.g. alice (required)
+`full_name`:: Full name, e.g. Alice Smith (optional)
+`admin`:: Make the user an administrator (member of wheel, can use sudo) (default: `false`)
+
+.In the terminal
+[source,shell]
+----
+sudo useradd --create-home USERNAME
+sudo passwd USERNAME
+----
+****
+// END GENERATED
+
+=== Admin rights
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.set_admin -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.set_admin]]
+[.operation]
+****
+Grant or revoke administrator rights (membership of wheel, sudo).
+
+*Command:* `/users set-admin USERNAME false` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`username`:: Login name (required)
+`admin`:: Administrator or not (required)
+
+.In the terminal
+[source,shell]
+----
+sudo gpasswd --delete USERNAME wheel
+----
+****
+// END GENERATED
+
+=== Delete user
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.delete -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.delete]]
+[.operation]
+****
+Delete a local user account, optionally with its home directory.
+
+*Command:* `/users delete USERNAME` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`username`:: Login name (required)
+`remove_home`:: Also delete the home directory and mail spool (default: `false`)
+
+.In the terminal
+[source,shell]
+----
+sudo userdel USERNAME
+----
+****
+// END GENERATED
+
+=== List groups
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.groups -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.groups]]
+[.operation]
+****
+List local groups with their GID and members, e.g. to choose one to add a user to.
+
+*Command:* `/users groups` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+getent group
+----
+****
+// END GENERATED
+
+=== Add to group
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.add_to_group -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.add_to_group]]
+[.operation]
+****
+Add a user to an existing group (supplementary membership; takes effect at the next login). Some groups give root-level access: wheel (sudo), docker, disk.
+
+*Command:* `/users add-to-group USERNAME GROUP` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`username`:: Login name (required)
+`group`:: Group name, as listed by List groups (required)
+
+.In the terminal
+[source,shell]
+----
+sudo usermod --append --groups GROUP USERNAME
+----
+****
+// END GENERATED
+
+=== Remove from group
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED users.remove_from_group -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users.remove_from_group]]
+[.operation]
+****
+Remove a user from a group they are a supplementary member of (takes effect at the next login).
+
+*Command:* `/users remove-from-group USERNAME GROUP` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`username`:: Login name (required)
+`group`:: Group name, as listed by List groups (required)
+
+.In the terminal
+[source,shell]
+----
+sudo gpasswd --delete USERNAME GROUP
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED users -- written by `yaist docs` from the module's code; edit the code, not this block
+[[users-at-a-glance]]
+=== Users at a glance
+
+.Users: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<users.list,List users>> |`/users list` |straight away
+|<<users.create,Add user>> |`/users create USERNAME` |after you confirm
+|<<users.set_admin,Admin rights>> |`/users set-admin USERNAME false` |after you confirm
+|<<users.delete,Delete user>> |`/users delete USERNAME` |after you confirm (hard to undo)
+|<<users.groups,List groups>> |`/users groups` |straight away
+|<<users.add_to_group,Add to group>> |`/users add-to-group USERNAME GROUP` |after you confirm
+|<<users.remove_from_group,Remove from group>> |`/users remove-from-group USERNAME GROUP` |after you confirm
+|===
+// END GENERATED

@@ -5,6 +5,7 @@ mod assistant;
 pub mod community;
 mod firewall;
 mod flatpak;
+pub mod handbook;
 mod helper;
 mod media;
 mod packages;

@@ -7,6 +7,8 @@
 //!   yaist ask "open port 8080"    ask the agent once; plans are shown, never applied
 //!   yaist help [module]           list commands
 //!   yaist tools                   print the LLM tool definitions (JSON)
+//!   yaist docs [--check] [DIR]    update the handbook's generated parts
+//!                                 (default docs/handbook)
 
 mod tui;
 
@@ -37,8 +39,24 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&tools)?);
             Ok(())
         }
+        Some("docs") => cli_docs(&args[1..]),
         Some(other) => bail!("unknown command '{other}'; try: yaist, yaist run /<module> <verb> …, yaist help, yaist tools"),
     }
+}
+
+/// Rewrites the generated blocks of the handbook's chapters; `--check` only
+/// reports stale ones and fails.
+fn cli_docs(args: &[String]) -> Result<()> {
+    let check = args.iter().any(|a| a == "--check");
+    let dir = args.iter().find(|a| !a.starts_with("--")).map_or("docs/handbook", String::as_str);
+    let changed = yaist_modules::handbook::update(&yaist_modules::registry(), std::path::Path::new(dir), !check)?;
+    for c in &changed {
+        println!("{} {dir}/{c}", if check { "stale:" } else { "updated:" });
+    }
+    if check && !changed.is_empty() {
+        bail!("the handbook is out of date; run `yaist docs`");
+    }
+    Ok(())
 }
 
 fn cli_run(args: &[String]) -> Result<()> {

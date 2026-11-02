@@ -1,0 +1,384 @@
+[[packages]]
+== Packages
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Available updates
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.list_updates -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.list_updates]]
+[.operation]
+****
+List packages with updates available, from the cached repository metadata.
+
+*Command:* `/packages list-updates` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+zypper list-updates
+----
+****
+// END GENERATED
+
+=== Search
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.search -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.search]]
+[.operation]
+****
+Search packages by name in the enabled repositories, showing whether each is installed.
+
+*Command:* `/packages search QUERY` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`query`:: Search term, e.g. nginx or *vim* (required)
+
+.In the terminal
+[source,shell]
+----
+zypper search QUERY
+----
+****
+// END GENERATED
+
+=== Details
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.info -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.info]]
+[.operation]
+****
+Show a package's version, repository, install status and description.
+
+*Command:* `/packages info PACKAGES` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`packages`:: Package name (required)
+
+.In the terminal
+[source,shell]
+----
+zypper info PACKAGES
+----
+****
+// END GENERATED
+
+=== Install
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.install -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.install]]
+[.operation]
+****
+Install packages (and their dependencies). Where openSUSE has a pattern of the same name (e.g. hyprland, gnome, kde), the user picks between that complete setup and just the package.
+
+*Command:* `/packages install PACKAGES` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`packages`:: Package names, space separated (required)
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo zypper install PACKAGES
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg install PACKAGES
+sudo reboot
+----
+****
+// END GENERATED
+
+=== Update
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.update -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.update]]
+[.operation]
+****
+Update specific packages to their newest version.
+
+*Command:* `/packages update PACKAGES` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`packages`:: Package names, space separated (required)
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo zypper update PACKAGES
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg update PACKAGES
+sudo reboot
+----
+****
+// END GENERATED
+
+=== Remove
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.remove -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.remove]]
+[.operation]
+****
+Remove packages. Packages that depend on them are removed too.
+
+*Command:* `/packages remove PACKAGES` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`packages`:: Package names, space separated (required)
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo zypper remove PACKAGES
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg remove PACKAGES
+sudo reboot
+----
+****
+// END GENERATED
+
+=== Search Flatpak apps
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.flatpak_search -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.flatpak_search]]
+[.operation]
+****
+Search Flatpak apps (e.g. on Flathub) by name. Prefer Flatpak for desktop apps on Leap and on immutable systems.
+
+*Command:* `/packages flatpak-search QUERY` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`query`:: App name, e.g. vlc or steam (required)
+
+.In the terminal
+[source,shell]
+----
+flatpak search QUERY
+----
+****
+// END GENERATED
+
+=== Flatpak apps
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.flatpak_list -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.flatpak_list]]
+[.operation]
+****
+List Flatpak apps installed for the current user.
+
+*Command:* `/packages flatpak-list` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+flatpak list --user --app
+----
+****
+// END GENERATED
+
+=== Install Flatpak app
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.flatpak_install -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.flatpak_install]]
+[.operation]
+****
+Install a Flatpak app for the current user (flatpak --user, no root). Sets up Flathub for the user if needed.
+
+*Command:* `/packages flatpak-install APP` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`app`:: Flatpak application ID, e.g. org.videolan.VLC (required)
+`remote`:: Flatpak remote (default: `flathub`)
+
+.In the terminal
+[source,shell]
+----
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub APP
+----
+****
+// END GENERATED
+
+=== Remove Flatpak app
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.flatpak_remove -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.flatpak_remove]]
+[.operation]
+****
+Remove a Flatpak app installed for the current user.
+
+*Command:* `/packages flatpak-remove APP` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`app`:: Flatpak application ID, e.g. org.videolan.VLC (required)
+
+.In the terminal
+[source,shell]
+----
+flatpak uninstall --user APP
+----
+****
+// END GENERATED
+
+=== Update system
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.update_system -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.update_system]]
+[.operation]
+****
+Install all available updates: update the whole system the way this distribution expects (Leap: zypper update, or zypper dup while the release is in Alpha/Beta/RC; Tumbleweed/Slowroll: zypper dup; immutable: transactional-update into a new snapshot).
+
+*Command:* `/packages update-system` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+sudo zypper dup --download-in-advance
+----
+
+.In the terminal, on Leap 16.0
+[source,shell]
+----
+sudo zypper update --download-in-advance
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue up
+sudo reboot
+----
+****
+// END GENERATED
+
+=== Install security updates
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.install_security -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.install_security]]
+[.operation]
+****
+Install only the pending security patches (Leap: zypper patch --category security). Rolling releases have no separate security updates; there use <<packages.update_system,Update system>>.
+
+*Command:* `/packages install-security` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+.In the terminal
+[source,shell]
+----
+sudo zypper patch --category security
+----
+****
+// END GENERATED
+
+=== Clean caches
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.clean -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.clean]]
+[.operation]
+****
+Delete downloaded packages and cached repository metadata, then download fresh metadata (zypper clean --all, zypper refresh). Fixes failures from a mirror that was still syncing or a damaged download.
+
+*Command:* `/packages clean` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal
+[source,shell]
+----
+sudo zypper clean --all
+sudo zypper refresh
+----
+****
+// END GENERATED
+
+=== Refresh
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.refresh -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.refresh]]
+[.operation]
+****
+Only download fresh repository metadata (zypper refresh); installs nothing. To install updates use <<packages.update_system,Update system>>.
+
+*Command:* `/packages refresh` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal
+[source,shell]
+----
+sudo zypper refresh
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED packages -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages-at-a-glance]]
+=== Packages at a glance
+
+.Packages: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<packages.list_updates,Available updates>> |`/packages list-updates` |straight away
+|<<packages.search,Search>> |`/packages search QUERY` |straight away
+|<<packages.info,Details>> |`/packages info PACKAGES` |straight away
+|<<packages.install,Install>> |`/packages install PACKAGES` |after you confirm
+|<<packages.update,Update>> |`/packages update PACKAGES` |after you confirm
+|<<packages.remove,Remove>> |`/packages remove PACKAGES` |after you confirm (hard to undo)
+|<<packages.flatpak_search,Search Flatpak apps>> |`/packages flatpak-search QUERY` |straight away
+|<<packages.flatpak_list,Flatpak apps>> |`/packages flatpak-list` |straight away
+|<<packages.flatpak_install,Install Flatpak app>> |`/packages flatpak-install APP` |after you confirm
+|<<packages.flatpak_remove,Remove Flatpak app>> |`/packages flatpak-remove APP` |after you confirm
+|<<packages.update_system,Update system>> |`/packages update-system` |after you confirm (hard to undo)
+|<<packages.install_security,Install security updates>> |`/packages install-security` |after you confirm (hard to undo)
+|<<packages.clean,Clean caches>> |`/packages clean` |after you confirm
+|<<packages.refresh,Refresh>> |`/packages refresh` |after you confirm
+|===
+// END GENERATED

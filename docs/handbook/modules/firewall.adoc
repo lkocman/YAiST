@@ -1,0 +1,237 @@
+[[firewall]]
+== Firewall
+
+A computer on a network is reachable by anything that can send it packets.
+The firewall decides which of those packets get through to a program on
+your computer and which are dropped. openSUSE ships with
+https://firewalld.org[firewalld] switched on, letting very little in, which
+is the right default for a laptop in a café and the reason a game server,
+a printer share or SSH might not be reachable until you allow it.
+
+In this chapter you will learn:
+
+* how firewalld thinks about zones, services and ports,
+* how to see what is allowed today,
+* how to let a service or a port through, and how to close it again.
+
+.Before you start
+* firewalld running, as it is on a default openSUSE installation.
+  `systemctl status firewalld` shows it; the <<services>> chapter shows how
+  to start it.
+* The administrator password. firewalld asks for it even to show its rules,
+  so the Firewall panel waits until you press *Show Firewall*.
+
+[[firewall-concepts]]
+=== Zones, services and ports
+
+firewalld groups its rules into *zones*. Each network interface, such as
+your Wi-Fi card, belongs to one zone, and the zone says what may come in
+through it. A fresh openSUSE uses the `public` zone for everything: it
+trusts nobody on the network and lets in little beyond DHCP and, on some
+installations, SSH.
+
+Inside a zone you allow traffic in two ways:
+
+Service:: A name firewalld knows, such as `ssh`, `https` or `samba`, which
+stands for all the ports that program needs. Prefer a service when one
+fits: `samba` alone opens four ports, and you don't need to know which.
+Port:: A number and a protocol, `25565/tcp` for a Minecraft server, or a
+range such as `60000-61000/udp`. Use a port for programs firewalld has no
+service for.
+
+[NOTE]
+====
+firewalld keeps two configurations: the *running* one, which applies now,
+and the *permanent* one, which is loaded at boot. A rule added to only one
+of them either disappears after a reboot or does nothing until the next
+one. YAiST always changes both, which is why each change below stands for
+two `firewall-cmd` commands.
+====
+
+[[firewall-see]]
+=== Rules
+
+Open *Firewall* in the sidebar and press *Show Firewall*. The table
+lists every active zone, the services and ports it allows, and the network
+interfaces in it; the default zone comes first. Each row has a *Remove*
+button.
+
+To ask the assistant, try _"what does my firewall let in?"_ or _"is SSH
+open?"_. Reading the rules never needs your confirmation.
+
+// BEGIN GENERATED firewall.overview -- written by `yaist docs` from the module's code; edit the code, not this block
+[[firewall.overview]]
+[.operation]
+****
+List the open ports and allowed services in each active firewall zone.
+
+*Command:* `/firewall overview` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+sudo firewall-cmd --list-all-zones
+----
+****
+// END GENERATED
+
+[[firewall-services]]
+=== Known services
+
+Before allowing a service you need its firewalld name, which is not
+always the program's name: the Plex media server is `plex`, but Steam's
+local game streaming is `steam-streaming`. Ask for the list, or give a part
+of the name to narrow it down.
+
+The assistant looks this up by itself when you ask it to allow something
+by its everyday name.
+
+// BEGIN GENERATED firewall.available_services -- written by `yaist docs` from the module's code; edit the code, not this block
+[[firewall.available_services]]
+[.operation]
+****
+List the service names firewalld knows (e.g. ssh, http, https, samba). Use it to find the right name for <<firewall.allow_service,Allow service>>.
+
+*Command:* `/firewall available-services` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`filter`:: Only names containing this text (optional)
+
+.In the terminal
+[source,shell]
+----
+firewall-cmd --get-services
+----
+****
+// END GENERATED
+
+[[firewall-allow]]
+=== Allow service
+
+Allowing a service is the usual way to make a program reachable from the
+network. In YAiST, press *Allow service* above the Firewall table and type
+the name; or tell the assistant what you are trying to do, for example
+_"let other computers reach my web server"_ or _"allow KDE Connect"_.
+Either way you get a plan card with the zone it will change and the
+commands it stands for, and nothing happens until you confirm.
+
+Without a zone, the rule goes into the default zone, which is what you
+want unless you have set up zones of your own.
+
+// BEGIN GENERATED firewall.allow_service -- written by `yaist docs` from the module's code; edit the code, not this block
+[[firewall.allow_service]]
+[.operation]
+****
+Allow a known service (e.g. ssh, http, https) through the firewall.
+
+*Command:* `/firewall allow-service SERVICE` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`service`:: firewalld service name, e.g. https (required)
+`zone`:: Firewall zone; leave empty for the default zone (optional)
+
+.In the terminal
+[source,shell]
+----
+sudo firewall-cmd --add-service=SERVICE
+sudo firewall-cmd --permanent --add-service=SERVICE
+----
+****
+// END GENERATED
+
+[[firewall-port]]
+=== Open port
+
+When no service fits, open the port the program's documentation names.
+Check whether it uses TCP, UDP or both: many game servers need UDP, and
+opening only TCP is a common reason a server "still doesn't work".
+For both, open the port twice, once per protocol.
+
+The assistant understands requests like _"open port 8080 for my dev
+server"_ or _"open 27015 UDP"_.
+
+// BEGIN GENERATED firewall.open_port -- written by `yaist docs` from the module's code; edit the code, not this block
+[[firewall.open_port]]
+[.operation]
+****
+Open a port (or port range) in a firewall zone. Prefer <<firewall.allow_service,Allow service>> when a known service fits.
+
+*Command:* `/firewall open-port PORT` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`port`:: Port or range, e.g. 8080 or 60000-61000 (required)
+`protocol`:: Protocol: `tcp`, `udp` (default: `tcp`)
+`zone`:: Firewall zone; leave empty for the default zone (optional)
+
+.In the terminal
+[source,shell]
+----
+sudo firewall-cmd --add-port=PORT/tcp
+sudo firewall-cmd --permanent --add-port=PORT/tcp
+----
+****
+// END GENERATED
+
+[TIP]
+====
+Open as little as you need, and close it again when you stop using it.
+A port open in the `public` zone is open on every network your laptop
+joins.
+====
+
+[[firewall-remove]]
+=== Remove
+
+Use the *Remove* button on a row of the Firewall table, or ask the
+assistant to _"close port 8080"_ or _"stop allowing SSH"_. Like adding,
+removing changes the running and the permanent configuration. Removing a
+rule that is not there is not an error, so it is safe to repeat.
+
+// BEGIN GENERATED firewall.remove -- written by `yaist docs` from the module's code; edit the code, not this block
+[[firewall.remove]]
+[.operation]
+****
+Close a port or stop allowing a service. rule is either port/protocol (8080/tcp) or a service name (http).
+
+*Command:* `/firewall remove RULE` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`rule`:: 8080/tcp or a service name (required)
+`zone`:: Firewall zone; leave empty for the default zone (optional)
+
+.In the terminal
+[source,shell]
+----
+sudo firewall-cmd --remove-service=RULE
+sudo firewall-cmd --permanent --remove-service=RULE
+----
+****
+// END GENERATED
+
+[TIP]
+====
+Removing `ssh` while you are logged in over SSH keeps your current session
+but blocks the next login. Do it from the computer itself, or open the
+port your SSH server really uses first.
+====
+
+// BEGIN GENERATED firewall -- written by `yaist docs` from the module's code; edit the code, not this block
+[[firewall-at-a-glance]]
+=== Firewall at a glance
+
+.Firewall: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<firewall.overview,Rules>> |`/firewall overview` |straight away
+|<<firewall.available_services,Known services>> |`/firewall available-services` |straight away
+|<<firewall.open_port,Open port>> |`/firewall open-port PORT` |after you confirm
+|<<firewall.allow_service,Allow service>> |`/firewall allow-service SERVICE` |after you confirm
+|<<firewall.remove,Remove>> |`/firewall remove RULE` |after you confirm
+|===
+// END GENERATED

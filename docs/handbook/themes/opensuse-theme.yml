@@ -1,0 +1,124 @@
+# PDF theme for the openSUSE Handbook (asciidoctor-pdf). Fonts and colours are
+# the app's: Inter for text, Archivo for headings, Geist Mono for code; the
+# openSUSE palette from crates/yaist-ui/src/palette.rs. The fonts directory
+# is passed by scripts/build-handbook.sh.
+extends: default
+font:
+  catalog:
+    merge: true
+    # Static fonts made by scripts/handbook-fonts.py.
+    Inter:
+      normal: Inter-regular.ttf
+      bold: Inter-bold.ttf
+      italic: Inter-italic.ttf
+      bold_italic: Inter-bold_italic.ttf
+    Archivo:
+      normal: Archivo-regular.ttf
+      bold: Archivo-bold.ttf
+      italic: Archivo-regular.ttf
+      bold_italic: Archivo-bold.ttf
+    Geist Mono:
+      normal: GeistMono-regular.ttf
+      bold: GeistMono-bold.ttf
+      italic: GeistMono-regular.ttf
+      bold_italic: GeistMono-bold.ttf
+  fallbacks: []
+page:
+  size: [7.5in, 9.25in]
+  margin: [0.75in, 0.7in, 0.8in, 0.7in]
+  margin_inner: 0.85in
+  margin_outer: 0.6in
+base:
+  font_family: Inter
+  font_color: '301A14'
+  font_size: 10
+  line_height: 1.45
+link:
+  font_color: '1E8A3C'
+heading:
+  font_family: Archivo
+  font_color: '301A14'
+  font_style: bold
+  h1_font_size: 30
+  h2_font_size: 22
+  h3_font_size: 15
+  h4_font_size: 12
+  margin_top: 14
+  margin_bottom: 8
+title_page:
+  align: left
+  background_color: '301A14'
+  font_color: 'FFF8EE'
+  title:
+    top: 38%
+    font_family: Archivo
+    font_style: bold
+    font_size: 38
+    font_color: '42CD42'
+  subtitle:
+    font_size: 16
+    font_color: 'FFF8EE'
+    margin_top: 6
+  authors:
+    font_color: 'B8AEAB'
+chapter:
+  break_before: always
+part:
+  break_after: auto
+codespan:
+  font_family: Geist Mono
+  font_color: '301A14'
+  font_size: 0.92em
+code:
+  font_family: Geist Mono
+  font_size: 8.5
+  background_color: 'F3EDE4'
+  border_width: 0
+  border_radius: 3
+  padding: [8, 10]
+sidebar:
+  background_color: 'F2FBF2'
+  border_color: '42CD42'
+  border_width: [0, 0, 0, 3]
+  border_radius: 0
+  padding: [10, 14]
+admonition:
+  column_rule_color: '42CD42'
+  icon:
+    tip:
+      stroke_color: '1E8A3C'
+    note:
+      stroke_color: '00A0CC'
+    important:
+      stroke_color: 'E0703A'
+    warning:
+      stroke_color: 'FF5B45'
+table:
+  head:
+    background_color: 'F3EDE4'
+    font_style: bold
+  border_color: 'D9D0C7'
+  grid_color: 'D9D0C7'
+caption:
+  font_color: '6B5A52'
+  font_style: italic
+header:
+  height: 0.45in
+  font_size: 8
+  font_color: '8A7A72'
+  recto:
+    right:
+      content: '{chapter-title}'
+  verso:
+    left:
+      content: '{chapter-title}'
+footer:
+  height: 0.5in
+  font_size: 8
+  font_color: '8A7A72'
+  recto:
+    right:
+      content: '{page-number}'
+  verso:
+    left:
+      content: '{page-number}'

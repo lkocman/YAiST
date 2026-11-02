@@ -1,0 +1,193 @@
+[[services]]
+== Services
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== List services
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.list -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.list]]
+[.operation]
+****
+List systemd services with their running and enabled state.
+
+*Command:* `/services list` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`state`:: Which services to show: `all`, `running`, `failed`, `enabled` (default: `all`)
+`filter`:: Only services whose name contains this text (optional)
+
+.In the terminal
+[source,shell]
+----
+systemctl list-units --type=service --all
+----
+****
+// END GENERATED
+
+=== Status
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.status -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.status]]
+[.operation]
+****
+Show one service's state, main process and recent log lines. Use this to diagnose a failing service.
+
+*Command:* `/services status UNIT` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`unit`:: Service name, e.g. sshd or sshd.service (required)
+
+.In the terminal
+[source,shell]
+----
+systemctl status UNIT.service
+----
+****
+// END GENERATED
+
+=== Start
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.start -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.start]]
+[.operation]
+****
+Start a service now.
+
+*Command:* `/services start UNIT` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`unit`:: Service name, e.g. sshd or sshd.service (required)
+
+.In the terminal
+[source,shell]
+----
+sudo systemctl start UNIT.service
+----
+****
+// END GENERATED
+
+=== Stop
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.stop -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.stop]]
+[.operation]
+****
+Stop a running service.
+
+*Command:* `/services stop UNIT` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`unit`:: Service name, e.g. sshd or sshd.service (required)
+
+.In the terminal
+[source,shell]
+----
+sudo systemctl stop UNIT.service
+----
+****
+// END GENERATED
+
+=== Restart
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.restart -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.restart]]
+[.operation]
+****
+Restart a service.
+
+*Command:* `/services restart UNIT` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`unit`:: Service name, e.g. sshd or sshd.service (required)
+
+.In the terminal
+[source,shell]
+----
+sudo systemctl restart UNIT.service
+----
+****
+// END GENERATED
+
+=== Enable
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.enable -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.enable]]
+[.operation]
+****
+Start a service automatically at boot, and optionally start it now.
+
+*Command:* `/services enable UNIT` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`unit`:: Service name, e.g. sshd or sshd.service (required)
+`now`:: Also start it now (default: `true`)
+
+.In the terminal
+[source,shell]
+----
+sudo systemctl enable --now UNIT.service
+----
+****
+// END GENERATED
+
+=== Disable
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED services.disable -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services.disable]]
+[.operation]
+****
+Stop a service from starting at boot, and optionally stop it now.
+
+*Command:* `/services disable UNIT` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`unit`:: Service name, e.g. sshd or sshd.service (required)
+`now`:: Also stop it now (default: `true`)
+
+.In the terminal
+[source,shell]
+----
+sudo systemctl disable --now UNIT.service
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED services -- written by `yaist docs` from the module's code; edit the code, not this block
+[[services-at-a-glance]]
+=== Services at a glance
+
+.Services: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<services.list,List services>> |`/services list` |straight away
+|<<services.status,Status>> |`/services status UNIT` |straight away
+|<<services.start,Start>> |`/services start UNIT` |after you confirm
+|<<services.stop,Stop>> |`/services stop UNIT` |after you confirm
+|<<services.restart,Restart>> |`/services restart UNIT` |after you confirm
+|<<services.enable,Enable>> |`/services enable UNIT` |after you confirm
+|<<services.disable,Disable>> |`/services disable UNIT` |after you confirm
+|===
+// END GENERATED

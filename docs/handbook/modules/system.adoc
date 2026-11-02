@@ -1,0 +1,135 @@
+[[system]]
+== System
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Overview
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED system.overview -- written by `yaist docs` from the module's code; edit the code, not this block
+[[system.overview]]
+[.operation]
+****
+Show hostname, operating system, kernel, time zone, uptime, memory and security module.
+
+*Command:* `/system overview` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+hostnamectl
+timedatectl
+----
+****
+// END GENERATED
+
+=== Set hostname
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED system.set_hostname -- written by `yaist docs` from the module's code; edit the code, not this block
+[[system.set_hostname]]
+[.operation]
+****
+Set the machine's static hostname.
+
+*Command:* `/system set-hostname HOSTNAME` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`hostname`:: New hostname, e.g. workstation (required)
+
+.In the terminal
+[source,shell]
+----
+sudo hostnamectl set-hostname HOSTNAME
+----
+****
+// END GENERATED
+
+=== Set time zone
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED system.set_timezone -- written by `yaist docs` from the module's code; edit the code, not this block
+[[system.set_timezone]]
+[.operation]
+****
+Set the system time zone (an IANA zone such as Europe/Prague or America/New_York).
+
+*Command:* `/system set-timezone TIMEZONE` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`timezone`:: IANA time zone, e.g. Europe/Prague (required)
+
+.In the terminal
+[source,shell]
+----
+sudo timedatectl set-timezone TIMEZONE
+----
+****
+// END GENERATED
+
+=== Reboot
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED system.reboot -- written by `yaist docs` from the module's code; edit the code, not this block
+[[system.reboot]]
+[.operation]
+****
+Restart the computer now, e.g. to finish updates installed into a new snapshot. Running programs are closed.
+
+*Command:* `/system reboot` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+.In the terminal
+[source,shell]
+----
+sudo systemctl reboot
+----
+****
+// END GENERATED
+
+=== Network time
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED system.set_ntp -- written by `yaist docs` from the module's code; edit the code, not this block
+[[system.set_ntp]]
+[.operation]
+****
+Turn automatic time synchronisation (NTP) on or off.
+
+*Command:* `/system set-ntp` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`enabled`:: Synchronise the clock over the network (default: `true`)
+
+.In the terminal
+[source,shell]
+----
+sudo timedatectl set-ntp true
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED system -- written by `yaist docs` from the module's code; edit the code, not this block
+[[system-at-a-glance]]
+=== System at a glance
+
+.System: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<system.overview,Overview>> |`/system overview` |straight away
+|<<system.set_hostname,Set hostname>> |`/system set-hostname HOSTNAME` |after you confirm
+|<<system.set_timezone,Set time zone>> |`/system set-timezone TIMEZONE` |after you confirm
+|<<system.reboot,Reboot>> |`/system reboot` |after you confirm (hard to undo)
+|<<system.set_ntp,Network time>> |`/system set-ntp` |after you confirm
+|===
+// END GENERATED

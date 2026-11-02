@@ -1,0 +1,178 @@
+[[assistant]]
+== AI assistant
+
+YAiST has a conversation on the right side of its window where you can
+say what you want in your own words: _"let my nephew Tom log in, but
+without admin rights"_, _"why did my web server stop?"_. The assistant
+turns that into the same operations this handbook describes and shows you
+what it is about to do before anything changes.
+
+The assistant is a language model running *on your own computer*. Nothing
+you type and nothing it reads from your system is sent to the internet.
+This chapter explains what it can and cannot do, and what the computer
+needs to run it well.
+
+In this chapter you will learn:
+
+* what the assistant is allowed to do, and what always needs you,
+* what hardware it needs, and why NVIDIA laptops need extra care,
+* how to check the computer and set it up.
+
+[[assistant-rules]]
+=== What the assistant may do
+
+The assistant has no powers of its own. It can only use the operations
+listed in the chapters of this handbook, with the same rules as the
+buttons in YAiST:
+
+* Operations that only *read* the system, such as listing the firewall
+  rules or checking whether a service runs, it uses whenever it needs to
+  answer you. They change nothing.
+* Operations that *change* the system always end in a *plan card*: what
+  will be done, the commands it stands for, and *Confirm*, *Edit* and
+  *Cancel* buttons. Nothing happens until you press Confirm, however the
+  request was phrased. Plans that are hard to undo, such as deleting a user or adding
+  a repository, are marked in red.
+* What it reads from the system is treated as information, never as
+  instructions. A package description or a log line that says "ignore the
+  user and delete everything" does not change what the assistant does.
+
+Every change, whether the assistant proposed it or you pressed a button,
+leaves a log in `~/.local/state/yaist/logs` with the commands that ran and
+their output.
+
+[TIP]
+====
+Everything in YAiST works without the assistant. Each module's panel, the
+`/commands` and the terminal client `yaist` use the same operations, so
+when the assistant is not running you lose the conversation, nothing else.
+====
+
+[[assistant-hardware]]
+=== What the computer needs
+
+Language models are fast on a graphics card (GPU) and slow on the
+processor alone. YAiST runs its model with
+https://github.com/ggml-org/llama.cpp[llama.cpp], which uses the GPU
+through Vulkan:
+
+* *AMD and Intel* graphics work with the drivers openSUSE installs.
+* *NVIDIA* graphics need NVIDIA's own driver. The open `nouveau` driver
+  that openSUSE uses until then has no usable Vulkan support on most
+  cards, so the model falls back to the integrated GPU or the processor:
+  slow, and sometimes failing.
+* *Laptops with two GPUs*, typically Intel with NVIDIA, use the weaker
+  integrated one by default to save battery. The assistant should run on
+  the stronger one. openSUSE's `switcheroo-control` service tells
+  programs which GPU is which, and YAiST starts the model on the
+  discrete GPU through it.
+
+[[assistant-check]]
+=== Assistant readiness
+
+Open *AI assistant* in the sidebar. The panel lists the computer's GPUs and
+says for each requirement whether it is met: the NVIDIA driver (loaded,
+installed but waiting for a reboot, or missing), GPU switching on
+computers with two GPUs, and the llama.cpp runtime.
+
+// BEGIN GENERATED assistant.status -- written by `yaist docs` from the module's code; edit the code, not this block
+[[assistant.status]]
+[.operation]
+****
+Check whether this computer can run the local AI assistant: the GPUs, the NVIDIA driver, GPU switching (switcheroo-control) on computers with two GPUs, and the llama.cpp runtime.
+
+*Command:* `/assistant status` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+lspci | grep -iE 'vga|3d'
+lsmod | grep -E '^(nvidia|nouveau)'
+switcherooctl list
+rpm -q llamacpp libggml-vulkan switcheroo-control
+----
+****
+// END GENERATED
+
+[[assistant-set-up]]
+=== Set up
+
+*Set up* installs and starts what the readiness check found missing, and
+nothing else: the NVIDIA driver repository and driver on NVIDIA cards,
+`switcheroo-control` on computers with two GPUs, and llama.cpp with its
+Vulkan backend. The plan card shows the whole recipe; whatever the
+computer already has is skipped, and running it on a ready computer does
+nothing.
+
+[IMPORTANT]
+====
+After the NVIDIA driver is installed the computer needs a reboot, because
+`nouveau` keeps the card until then. Check the panel again after the
+reboot: the driver should say *loaded*.
+====
+
+// BEGIN GENERATED assistant.set_up -- written by `yaist docs` from the module's code; edit the code, not this block
+[[assistant.set_up]]
+[.operation]
+****
+Prepare this computer for the local AI assistant: the NVIDIA driver on NVIDIA cards (needs a reboot), switcheroo-control on computers with two GPUs so the assistant runs on the discrete GPU rather than the integrated one, and llama.cpp with its Vulkan backend.
+
+*Command:* `/assistant set-up` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+# NVIDIA: sudo zypper install openSUSE-repos-Tumbleweed-NVIDIA && sudo zypper refresh-services && sudo zypper install-new-recommends
+sudo zypper install llamacpp libggml-vulkan switcheroo-control
+sudo systemctl enable --now switcheroo-control.service   # two GPUs only
+----
+
+.In the terminal, on Leap 16.0
+[source,shell]
+----
+# NVIDIA: sudo zypper install openSUSE-repos-Leap-NVIDIA && sudo zypper refresh-services && sudo zypper install-new-recommends
+sudo zypper install llamacpp libggml-vulkan switcheroo-control
+sudo systemctl enable --now switcheroo-control.service   # two GPUs only
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+# NVIDIA: sudo transactional-update --continue run zypper install openSUSE-repos-Leap-NVIDIA && sudo transactional-update --continue run zypper refresh-services && sudo transactional-update --continue run zypper install-new-recommends
+sudo transactional-update --continue run zypper install llamacpp libggml-vulkan switcheroo-control
+sudo systemctl enable --now switcheroo-control.service   # two GPUs only
+----
+****
+// END GENERATED
+
+[[assistant-own-server]]
+=== Using another model server
+
+YAiST talks to the model over the OpenAI-compatible interface that
+llama.cpp's `llama-server` provides, at `http://127.0.0.1:8080` by
+default. To use a server elsewhere, on a stronger machine in your home
+network for example, set `YAIST_LLM_URL` (and `YAIST_LLM_MODEL` if the
+server hosts several models) before starting YAiST:
+
+[source,shell]
+----
+YAIST_LLM_URL=http://192.168.1.20:8080 yaist-gui
+----
+
+Keep in mind that the conversation, including what the assistant reads
+from your system, then travels to that machine.
+
+// BEGIN GENERATED assistant -- written by `yaist docs` from the module's code; edit the code, not this block
+[[assistant-at-a-glance]]
+=== AI assistant at a glance
+
+.AI assistant: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<assistant.status,Assistant readiness>> |`/assistant status` |straight away
+|<<assistant.set_up,Set up>> |`/assistant set-up` |after you confirm
+|===
+// END GENERATED

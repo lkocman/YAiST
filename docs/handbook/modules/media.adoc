@@ -1,0 +1,187 @@
+[[media]]
+== Gaming & media
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Gaming and media status
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED media.status -- written by `yaist docs` from the module's code; edit the code, not this block
+[[media.status]]
+[.operation]
+****
+Show what is set up for gaming and multimedia: graphics driver for the detected GPU, Steam, controllers, the SELinux gaming policy, codecs and Flathub.
+
+*Command:* `/media status` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+lspci | grep -iE 'vga|3d'
+rpm -q steam steam-devices selinux-policy-targeted-gaming
+flatpak remotes --user
+----
+****
+// END GENERATED
+
+=== Set up
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED media.set_up -- written by `yaist docs` from the module's code; edit the code, not this block
+[[media.set_up]]
+[.operation]
+****
+Set up one item of the gaming and media checklist: graphics (Vulkan driver, or NVIDIA drivers), non-oss (the repository Steam comes from on Tumbleweed), steam, controllers (steam-devices), selinux (gaming policy), gamemode, openh264 (official H.264 codec) or flathub.
+
+*Command:* `/media set-up graphics` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`item`:: What to set up: `graphics`, `non-oss`, `steam`, `controllers`, `selinux`, `gamemode`, `openh264`, `flathub` (required)
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+# AMD: libvulkan_radeon libvulkan_radeon-32bit libvulkan1-32bit
+# Intel: libvulkan_intel libvulkan_intel-32bit libvulkan1-32bit
+# NVIDIA: sudo zypper install openSUSE-repos-Tumbleweed-NVIDIA && sudo zypper refresh-services && sudo zypper install-new-recommends
+----
+
+.In the terminal, on Leap 16.0
+[source,shell]
+----
+# AMD: libvulkan_radeon
+# Intel: libvulkan_intel
+# NVIDIA: sudo zypper install openSUSE-repos-Leap-NVIDIA && sudo zypper refresh-services && sudo zypper install-new-recommends
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+# AMD: libvulkan_radeon
+# Intel: libvulkan_intel
+# NVIDIA: sudo transactional-update --continue run zypper install openSUSE-repos-Leap-NVIDIA && sudo transactional-update --continue run zypper refresh-services && sudo transactional-update --continue run zypper install-new-recommends
+----
+****
+// END GENERATED
+
+=== Set up gaming
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED media.set_up_gaming -- written by `yaist docs` from the module's code; edit the code, not this block
+[[media.set_up_gaming]]
+[.operation]
+****
+Everything for gaming in one go: graphics driver for the GPU, Steam (RPM on Tumbleweed, Flathub Flatpak for the user on Leap and immutable systems), controller support and the SELinux gaming policy.
+
+*Command:* `/media set-up-gaming` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+sudo zypper install steam steam-devices selinux-policy-targeted-gaming
+# AMD: libvulkan_radeon libvulkan_radeon-32bit libvulkan1-32bit
+# Intel: libvulkan_intel libvulkan_intel-32bit libvulkan1-32bit
+# NVIDIA: sudo zypper install openSUSE-repos-Tumbleweed-NVIDIA && sudo zypper refresh-services && sudo zypper install-new-recommends
+sudo zypper modifyrepo --enable openSUSE:repo-non-oss   # Steam is in non-oss
+----
+
+.In the terminal, on Leap 16.0
+[source,shell]
+----
+sudo zypper install steam-devices selinux-policy-targeted-gaming
+# AMD: libvulkan_radeon
+# Intel: libvulkan_intel
+# NVIDIA: sudo zypper install openSUSE-repos-Leap-NVIDIA && sudo zypper refresh-services && sudo zypper install-new-recommends
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub com.valvesoftware.Steam
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg install steam-devices selinux-policy-targeted-gaming
+# AMD: libvulkan_radeon
+# Intel: libvulkan_intel
+# NVIDIA: sudo transactional-update --continue run zypper install openSUSE-repos-Leap-NVIDIA && sudo transactional-update --continue run zypper refresh-services && sudo transactional-update --continue run zypper install-new-recommends
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub com.valvesoftware.Steam
+----
+****
+// END GENERATED
+
+=== Install openh264
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED media.openh264 -- written by `yaist docs` from the module's code; edit the code, not this block
+[[media.openh264]]
+[.operation]
+****
+Install the official openh264 codec (H.264 for video calls and browsers) from openSUSE's codec repository. Safe default for most people.
+
+*Command:* `/media openh264` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+sudo zypper install libopenh264-8 mozilla-openh264 gstreamer-plugin-openh264
+----
+
+.In the terminal, on Leap 16.0
+[source,shell]
+----
+sudo zypper install libopenh264-8 mozilla-openh264
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg install libopenh264-8 mozilla-openh264
+----
+****
+// END GENERATED
+
+=== Full codecs (Packman)
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED media.packman_codecs -- written by `yaist docs` from the module's code; edit the code, not this block
+[[media.packman_codecs]]
+[.operation]
+****
+Install full multimedia codecs from Packman, a third-party repository, with opi: switches ffmpeg, GStreamer and VLC codecs to Packman's builds. Not for immutable systems; Flatpak apps bring their own codecs instead.
+
+*Command:* `/media packman-codecs` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+.In the terminal
+[source,shell]
+----
+sudo zypper install opi
+opi codecs
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED media -- written by `yaist docs` from the module's code; edit the code, not this block
+[[media-at-a-glance]]
+=== Gaming & media at a glance
+
+.Gaming & media: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<media.status,Gaming and media status>> |`/media status` |straight away
+|<<media.set_up,Set up>> |`/media set-up graphics` |after you confirm
+|<<media.set_up_gaming,Set up gaming>> |`/media set-up-gaming` |after you confirm
+|<<media.openh264,Install openh264>> |`/media openh264` |after you confirm
+|<<media.packman_codecs,Full codecs (Packman)>> |`/media packman-codecs` |after you confirm (hard to undo)
+|===
+// END GENERATED

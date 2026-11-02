@@ -1,0 +1,345 @@
+[[printers]]
+== Printers
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Printers
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.list -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.list]]
+[.operation]
+****
+List configured printers with their state, whether they are the default, their device and queued jobs.
+
+*Command:* `/printers list` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+lpstat -p -d -v
+----
+****
+// END GENERATED
+
+=== Find printers
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.find -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.find]]
+[.operation]
+****
+Look for printers on the network (IPP/driverless) and connected by USB, and say which are HP devices that work best with HPLIP.
+
+*Command:* `/printers find` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+ippfind --timeout 5
+sudo lpinfo -v
+----
+****
+// END GENERATED
+
+=== Print jobs
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.jobs -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.jobs]]
+[.operation]
+****
+List queued print jobs.
+
+*Command:* `/printers jobs` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+lpstat -o
+----
+****
+// END GENERATED
+
+=== Install HP drivers
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.install_hplip -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.install_hplip]]
+[.operation]
+****
+Install HPLIP, HP's printing and scanning drivers and tools (hplip, hplip-sane), for HP printers and all-in-ones.
+
+*Command:* `/printers install-hplip` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo zypper install hplip hplip-sane
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg install hplip hplip-sane
+----
+****
+// END GENERATED
+
+=== Add HP printer
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.add_hp -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.add_hp]]
+[.operation]
+****
+Set up an HP printer or all-in-one with HPLIP (hp-setup), by IP address, hostname or USB serial number. Installs HPLIP first if needed.
+
+*Command:* `/printers add-hp ADDRESS` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`address`:: IP address, hostname or USB serial number (required)
+`name`:: Name for the printer; HPLIP picks one if empty (optional)
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo zypper install hplip hplip-sane
+sudo hp-setup -i -a -x ADDRESS
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue pkg install hplip hplip-sane
+sudo hp-setup -i -a -x ADDRESS
+----
+****
+// END GENERATED
+
+=== Add printer
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.add -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.add]]
+[.operation]
+****
+Add a printer by its device URI with the driverless IPP Everywhere driver (works for most network and IPP-over-USB printers made since 2010).
+
+*Command:* `/printers add NAME URI` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`name`:: Name for the printer, e.g. Office (required)
+`uri`:: Device URI, e.g. ipp://printer.local/ipp/print (see Find printers) (required)
+
+.In the terminal
+[source,shell]
+----
+sudo lpadmin -p NAME -E -v URI -m everywhere
+----
+****
+// END GENERATED
+
+=== Test page
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.test_page -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.test_page]]
+[.operation]
+****
+Print the CUPS test page.
+
+*Command:* `/printers test-page PRINTER` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`printer`:: Printer name, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+lp -d PRINTER /usr/share/cups/data/testprint
+----
+****
+// END GENERATED
+
+=== Make default
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.set_default -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.set_default]]
+[.operation]
+****
+Make a printer the system's default.
+
+*Command:* `/printers set-default PRINTER` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`printer`:: Printer name, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+sudo lpadmin -d PRINTER
+----
+****
+// END GENERATED
+
+=== Enable
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.enable -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.enable]]
+[.operation]
+****
+Enable a printer and accept jobs.
+
+*Command:* `/printers enable PRINTER` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`printer`:: Printer name, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+sudo cupsenable PRINTER && sudo cupsaccept PRINTER
+----
+****
+// END GENERATED
+
+=== Disable
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.disable -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.disable]]
+[.operation]
+****
+Pause a printer and stop accepting jobs.
+
+*Command:* `/printers disable PRINTER` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`printer`:: Printer name, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+sudo cupsdisable PRINTER && sudo cupsreject PRINTER
+----
+****
+// END GENERATED
+
+=== Cancel jobs
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.cancel_jobs -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.cancel_jobs]]
+[.operation]
+****
+Cancel all of your queued jobs on a printer.
+
+*Command:* `/printers cancel-jobs PRINTER` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`printer`:: Printer name, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+cancel -a PRINTER
+----
+****
+// END GENERATED
+
+=== Remove
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.remove -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.remove]]
+[.operation]
+****
+Delete a printer queue.
+
+*Command:* `/printers remove PRINTER` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`printer`:: Printer name, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+sudo lpadmin -x PRINTER
+----
+****
+// END GENERATED
+
+=== Share printers
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED printers.share -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers.share]]
+[.operation]
+****
+Share (or stop sharing) this computer's printers on the local network. Other computers also need the ipp service allowed in the firewall.
+
+*Command:* `/printers share` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`enabled`:: Share printers (default: `true`)
+
+.In the terminal
+[source,shell]
+----
+sudo cupsctl --share-printers
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED printers -- written by `yaist docs` from the module's code; edit the code, not this block
+[[printers-at-a-glance]]
+=== Printers at a glance
+
+.Printers: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<printers.list,Printers>> |`/printers list` |straight away
+|<<printers.find,Find printers>> |`/printers find` |straight away
+|<<printers.jobs,Print jobs>> |`/printers jobs` |straight away
+|<<printers.install_hplip,Install HP drivers>> |`/printers install-hplip` |after you confirm
+|<<printers.add_hp,Add HP printer>> |`/printers add-hp ADDRESS` |after you confirm
+|<<printers.add,Add printer>> |`/printers add NAME URI` |after you confirm
+|<<printers.test_page,Test page>> |`/printers test-page PRINTER` |after you confirm
+|<<printers.set_default,Make default>> |`/printers set-default PRINTER` |after you confirm
+|<<printers.enable,Enable>> |`/printers enable PRINTER` |after you confirm
+|<<printers.disable,Disable>> |`/printers disable PRINTER` |after you confirm
+|<<printers.cancel_jobs,Cancel jobs>> |`/printers cancel-jobs PRINTER` |after you confirm
+|<<printers.remove,Remove>> |`/printers remove PRINTER` |after you confirm (hard to undo)
+|<<printers.share,Share printers>> |`/printers share` |after you confirm
+|===
+// END GENERATED

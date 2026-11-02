@@ -1,0 +1,92 @@
+[[community]]
+== Community
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Community
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED community.links -- written by `yaist docs` from the module's code; edit the code, not this block
+[[community.links]]
+[.operation]
+****
+List openSUSE community places: chat (Matrix), the 24x7 virtual bar (Jitsi), Kudos to thank people, forums, the events calendar, news, documentation, wiki, bug reports, the Open Build Service, openQA, software search and osdiff.
+
+*Command:* `/community links` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+xdg-open https://en.opensuse.org/Portal
+----
+****
+// END GENERATED
+
+=== Visit
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED community.visit -- written by `yaist docs` from the module's code; edit the code, not this block
+[[community.visit]]
+[.operation]
+****
+Open one of the community links in the web browser.
+
+*Command:* `/community visit LINK` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`link`:: The link's URL, as listed (required)
+
+.In the terminal
+[source,shell]
+----
+xdg-open LINK
+----
+****
+// END GENERATED
+
+=== Report a problem
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED community.report_problem -- written by `yaist docs` from the module's code; edit the code, not this block
+[[community.report_problem]]
+[.operation]
+****
+Prepare a bug report: a YAiST issue on GitHub (target yaist) when YAiST got something wrong, or an openSUSE Bugzilla report (target opensuse) for a problem in the distribution or a package. It opens prefilled in the browser; the user completes it there, and nothing is sent until they submit it.
+
+*Command:* `/community report-problem title=TITLE observation=OBSERVATION` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`target`:: yaist: YAiST did something wrong; opensuse: a package or the distribution is broken: `yaist`, `opensuse` (default: `yaist`)
+`title`:: One line saying what is wrong, e.g. 'Update fails: %post script of foo exits 1' (required)
+`observation`:: What happened: the steps and the exact error output (required)
+`expected`:: What should have happened (optional)
+`reproducible`:: Does it happen again?: `always`, `sometimes`, `once`, `unknown` (default: `unknown`)
+
+.In the terminal
+[source,shell]
+----
+# check for an existing report first, then:
+xdg-open 'https://github.com/lkocman/YAiST/issues/new'
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED community -- written by `yaist docs` from the module's code; edit the code, not this block
+[[community-at-a-glance]]
+=== Community at a glance
+
+.Community: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<community.links,Community>> |`/community links` |straight away
+|<<community.visit,Visit>> |`/community visit LINK` |straight away
+|<<community.report_problem,Report a problem>> |`/community report-problem title=TITLE observation=OBSERVATION` |straight away
+|===
+// END GENERATED

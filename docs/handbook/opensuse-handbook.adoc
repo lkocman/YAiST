@@ -1,0 +1,60 @@
+= openSUSE Handbook: Looking after your system
+The openSUSE community
+:doctype: book
+:toc: left
+:toclevels: 2
+:sectnums:
+:sectnumlevels: 2
+:partnums:
+:chapter-signifier: Chapter
+:part-signifier: Part
+:source-highlighter: rouge
+:icons: font
+:experimental:
+:imagesdir: ../screenshots
+:pdf-theme: opensuse
+:pdf-themesdir: {docdir}/themes
+:epub-chapter-level: 2
+:description: Looking after an openSUSE system with YAiST: what each part of the system is for, and how to manage it from YAiST, by asking the assistant, or in the terminal.
+
+include::preface.adoc[]
+
+= Getting started
+
+include::modules/welcome.adoc[]
+
+include::modules/system.adoc[]
+
+= Software
+
+include::modules/packages.adoc[]
+
+include::modules/repos.adoc[]
+
+include::modules/upgrade.adoc[]
+
+= Users and security
+
+include::modules/users.adoc[]
+
+include::modules/firewall.adoc[]
+
+include::modules/selinux.adoc[]
+
+= Keeping the system healthy
+
+include::modules/services.adoc[]
+
+include::modules/snapshots.adoc[]
+
+include::modules/printers.adoc[]
+
+= Desktop and hardware
+
+include::modules/media.adoc[]
+
+include::modules/assistant.adoc[]
+
+= Community
+
+include::modules/community.adoc[]

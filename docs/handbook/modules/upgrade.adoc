@@ -1,0 +1,153 @@
+[[upgrade]]
+== Upgrade
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== Upgrade options
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED upgrade.targets -- written by `yaist docs` from the module's code; edit the code, not this block
+[[upgrade.targets]]
+[.operation]
+****
+Show what this system can upgrade or migrate to (newer Leap, Tumbleweed, Slowroll, SUSE Linux Enterprise, or a full upgrade on rolling releases), what each means, and which repositories it would disable.
+
+*Command:* `/upgrade targets` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+cat /etc/os-release
+zypper repos --uri
+----
+****
+// END GENERATED
+
+=== Upgrade
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED upgrade.migrate -- written by `yaist docs` from the module's code; edit the code, not this block
+[[upgrade.migrate]]
+[.operation]
+****
+Upgrade or migrate: target=leap:<version> (newer Leap release), tumbleweed (rolling release), slowroll (Tumbleweed with batched updates) or dup (full upgrade of a rolling release). Disables repositories that may not work on the target. Takes long; reboot afterwards. For SUSE Linux Enterprise use <<upgrade.to_sle,SUSE Linux Enterprise>>.
+
+*Command:* `/upgrade migrate TARGET` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`target`:: What to move to, as listed in the upgrade options (required)
+`keep_enabled`:: Repository aliases to keep enabled anyway, space separated. Only release-independent ones: a kept repository that can't be refreshed for the target makes zypper dup fail (default: `google-chrome`)
+
+.In the terminal, on Tumbleweed and Leap 16.0
+[source,shell]
+----
+sudo snapper create --description 'before the upgrade' --userdata important=yes --print-number
+sudo zypper modifyrepo --disable <every repository except openSUSE:*, NVIDIA:* and google-chrome>
+sudo zypper install --force-resolution openSUSE-repos-Leap
+sudo zypper refresh-services
+sudo zypper addrepo --refresh https://download.opensuse.org/distribution/leap/'<version>'/repo/oss tmp
+sudo zypper install --repo tmp --from tmp --force-resolution openSUSE-repos-Leap
+sudo zypper removerepo tmp
+sudo zypper refresh-services
+sudo zypper --releasever '<version>' dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet
+sudo zypper --releasever '<version>' --no-refresh dup --force-resolution --allow-vendor-change
+sudo zypper --releasever '<version>' --no-refresh install --force-resolution Leap-release   # the target's release package
+sudo reboot
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo transactional-update --continue run zypper modifyrepo --disable <every repository except openSUSE:*, NVIDIA:* and google-chrome>
+sudo transactional-update --continue run zypper install --force-resolution openSUSE-repos-Leap
+sudo transactional-update --continue run zypper refresh-services
+sudo transactional-update --continue run zypper addrepo --refresh https://download.opensuse.org/distribution/leap/'<version>'/repo/oss tmp
+sudo transactional-update --continue run zypper install --repo tmp --from tmp --force-resolution openSUSE-repos-Leap
+sudo transactional-update --continue run zypper removerepo tmp
+sudo transactional-update --continue run zypper refresh-services
+sudo transactional-update --continue run zypper --releasever '<version>' dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet
+sudo transactional-update --continue run zypper --releasever '<version>' --no-refresh dup --force-resolution --allow-vendor-change
+sudo transactional-update --continue run zypper --releasever '<version>' --no-refresh install --force-resolution Leap-release   # the target's release package
+sudo reboot
+----
+****
+// END GENERATED
+
+=== SUSE Linux Enterprise
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED upgrade.to_sle -- written by `yaist docs` from the module's code; edit the code, not this block
+[[upgrade.to_sle]]
+[.operation]
+****
+Migrate Leap to SUSE Linux Enterprise Server for official support by SUSE (the same version, e.g. Leap 16.0 to SLES 16.0). Needs a subscription: the email and registration code from the SUSE Customer Center. The migration follows the community opensuse-migration-tool and is not itself supported by SUSE; the resulting SLES is. One-way.
+
+*Command:* `/upgrade to-sle EMAIL ••••••` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`email`:: Email address of your SUSE Customer Center account (required)
+`regcode`:: Registration code from the SUSE Customer Center (required)
+`keep_enabled`:: Repository aliases to keep enabled anyway, space separated. Only release-independent ones: a kept repository that can't be refreshed for the target makes zypper dup fail (default: `google-chrome`)
+
+.In the terminal
+[source,shell]
+----
+sudo snapper create --description 'before the upgrade' --userdata important=yes --print-number
+sudo zypper modifyrepo --disable <every repository except openSUSE:* and google-chrome>
+sudo zypper install suseconnect-ng snapper grub2-snapper-plugin
+sudo cp /etc/os-release /etc/os-release.backup   # then write a SLES os-release and product
+sudo rpm -e --nodeps openSUSE-release openSUSE-repos
+sudo suseconnect -e EMAIL -r REGCODE
+sudo suseconnect -p PackageHub/$VERSION_ID/$(uname -m)
+sudo zypper dup --download-only --force-resolution --allow-vendor-change   # everything first, nothing changed yet
+sudo zypper --no-refresh dup --force-resolution --allow-vendor-change
+sudo zypper install branding-SLE-<major> grub2-branding-SLE wallpaper-branding-SLE-<major> plymouth-branding-SLE systemd-presets-branding-SLE
+sudo reboot
+----
+****
+// END GENERATED
+
+=== What's new
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED upgrade.release_notes -- written by `yaist docs` from the module's code; edit the code, not this block
+[[upgrade.release_notes]]
+[.operation]
+****
+The release notes of a Leap release (version, e.g. 16.1): the entries that concern this system's hardware, desktop and installed packages, and links to the full notes. Use it when the user asks what is new or what changes in a release.
+
+*Command:* `/upgrade release-notes VERSION` +
+*Runs:* straight away; it only reads the system.
+
+[horizontal]
+`version`:: Leap release, e.g. 16.1 (required)
+
+.In the terminal
+[source,shell]
+----
+xdg-open https://doc.opensuse.org/release-notes/x86_64/openSUSE/Leap/VERSION/html/release-notes-leap-VERSION/index.html
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED upgrade -- written by `yaist docs` from the module's code; edit the code, not this block
+[[upgrade-at-a-glance]]
+=== Upgrade at a glance
+
+.Upgrade: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<upgrade.targets,Upgrade options>> |`/upgrade targets` |straight away
+|<<upgrade.migrate,Upgrade>> |`/upgrade migrate TARGET` |after you confirm (hard to undo)
+|<<upgrade.to_sle,SUSE Linux Enterprise>> |`/upgrade to-sle EMAIL ••••••` |after you confirm (hard to undo)
+|<<upgrade.release_notes,What's new>> |`/upgrade release-notes VERSION` |straight away
+|===
+// END GENERATED

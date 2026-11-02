@@ -1,0 +1,53 @@
+[preface]
+== Preface
+
+This handbook is about looking after a computer running openSUSE: keeping
+its software up to date, adding users, opening the firewall for a game
+server, rolling back an update that went wrong. It explains what each part
+of the system does and why, and then shows how to manage it with YAiST,
+openSUSE's system tool.
+
+=== Three ways to do everything
+
+Every operation in this book is shown three ways:
+
+In YAiST:: The panel for that part of the system, with its table and
+buttons.
+Asking the assistant:: Saying what you want in your own words, in the
+conversation beside the panels. The <<assistant>> chapter explains what
+the assistant may do on its own; in short, it reads freely and changes
+nothing until you confirm.
+In the terminal:: The commands YAiST runs for you, so you can learn the
+tools underneath, use them over SSH, or put them in a script.
+
+You can mix them freely. YAiST does nothing the terminal commands would
+not do, and changes you make in the terminal show up in YAiST.
+
+=== How this book is made
+
+The book is written alongside YAiST and published with each release. The
+boxes describing each operation, its options and its terminal commands are
+generated from YAiST's own code, so they always match the version you
+have. Where openSUSE flavours differ, as between Tumbleweed and Leap, the
+box shows each.
+
+=== Conventions
+
+* Text you type, commands and file names look like `zypper refresh`.
+* Buttons and other things on screen look like *Allow service*.
+* Things to say to the assistant look like _"open port 8080"_.
+* `PORT`, `USERNAME` and other words in capitals stand for a value you
+  choose.
+
+=== Licence
+
+This handbook is licensed under the
+https://creativecommons.org/licenses/by-sa/4.0/[Creative Commons
+Attribution-ShareAlike 4.0 International] licence. You may copy, adapt and
+share it, for any purpose, if you credit the openSUSE Handbook contributors and share
+what you make from it under the same licence.
+
+=== Contributing
+
+The handbook lives in YAiST's repository, in `docs/handbook`, with one file
+per chapter. Corrections and new sections are welcome as pull requests.

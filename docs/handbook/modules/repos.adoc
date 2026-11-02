@@ -1,0 +1,235 @@
+[[repos]]
+== Repositories
+
+// TODO(handbook): what this part of the system is for and why it matters, then a list of what the chapter covers.
+
+=== List repositories
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.list -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.list]]
+[.operation]
+****
+List configured repositories: RPM repositories (zypper) and Flatpak remotes, with their URL, whether they are enabled, and whether enabled RPM repositories can be reached (status broken: zypper would skip them).
+
+*Command:* `/repos list` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+zypper repos --uri
+----
+****
+// END GENERATED
+
+=== Add repository
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.add -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.add]]
+[.operation]
+****
+Add a package repository by URL and trust its signing key. Only for sources the user trusts.
+
+*Command:* `/repos add URL ALIAS` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`url`:: Repository URL (https://…) (required)
+`alias`:: Short unique name, e.g. games (required)
+
+.In the terminal
+[source,shell]
+----
+sudo zypper addrepo --refresh URL ALIAS
+sudo zypper --gpg-auto-import-keys refresh --repo ALIAS
+----
+****
+// END GENERATED
+
+=== Add OBS project
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.add_obs -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.add_obs]]
+[.operation]
+****
+Add a community repository from the Open Build Service (e.g. home:user or devel:languages:rust), built for this distribution, and trust its signing key.
+
+*Command:* `/repos add-obs PROJECT` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`project`:: OBS project, e.g. games or devel:languages:rust (required)
+`alias`:: Short unique name; defaults to the project name (optional)
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+sudo zypper addrepo --refresh https://download.opensuse.org/repositories/PROJECT/openSUSE_Tumbleweed/ PROJECT
+sudo zypper --gpg-auto-import-keys refresh --repo PROJECT
+----
+
+.In the terminal, on Leap 16.0
+[source,shell]
+----
+sudo zypper addrepo --refresh https://download.opensuse.org/repositories/PROJECT/16.0/ PROJECT
+sudo zypper --gpg-auto-import-keys refresh --repo PROJECT
+----
+
+.In the terminal, on Leap 16.1 Immutable
+[source,shell]
+----
+sudo zypper addrepo --refresh https://download.opensuse.org/repositories/PROJECT/16.1/ PROJECT
+sudo zypper --gpg-auto-import-keys refresh --repo PROJECT
+----
+****
+// END GENERATED
+
+=== Enable non-oss
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.enable_non_oss -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.enable_non_oss]]
+[.operation]
+****
+Make sure openSUSE's non-oss repository is set up and enabled: freely distributable software that is not open source, such as Steam, some firmware and fonts.
+
+*Command:* `/repos enable-non-oss` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal, on Tumbleweed
+[source,shell]
+----
+sudo zypper modifyrepo --enable openSUSE:repo-non-oss   # if it exists, disabled
+sudo zypper addrepo --refresh 'http://cdn.opensuse.org/tumbleweed/repo/non-oss/' repo-non-oss   # if it is missing
+----
+
+.In the terminal, on Leap 16.0 and Leap 16.1 Immutable
+[source,shell]
+----
+sudo zypper modifyrepo --enable openSUSE:repo-non-oss   # if it exists, disabled
+sudo zypper addrepo --refresh 'http://cdn.opensuse.org/distribution/leap/${releasever}/repo/non-oss/$basearch' repo-non-oss   # if it is missing
+----
+****
+// END GENERATED
+
+=== Add Flathub
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.add_flathub -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.add_flathub]]
+[.operation]
+****
+Add Flathub, the main source of Flatpak apps, for the current user (flatpak --user, no root needed).
+
+*Command:* `/repos add-flathub` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+.In the terminal
+[source,shell]
+----
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+----
+****
+// END GENERATED
+
+=== Enable
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.enable -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.enable]]
+[.operation]
+****
+Enable a repository (RPM or Flatpak).
+
+*Command:* `/repos enable ALIAS` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`alias`:: Repository alias, as listed (required)
+`kind`:: Repository type, as listed (rpm or flatpak): `rpm`, `flatpak-user`, `flatpak-system` (default: `rpm`)
+
+.In the terminal
+[source,shell]
+----
+sudo zypper modifyrepo --enable ALIAS
+----
+****
+// END GENERATED
+
+=== Disable
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.disable -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.disable]]
+[.operation]
+****
+Disable a repository (RPM or Flatpak) without removing it.
+
+*Command:* `/repos disable ALIAS` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`alias`:: Repository alias, as listed (required)
+`kind`:: Repository type, as listed (rpm or flatpak): `rpm`, `flatpak-user`, `flatpak-system` (default: `rpm`)
+
+.In the terminal
+[source,shell]
+----
+sudo zypper modifyrepo --disable ALIAS
+----
+****
+// END GENERATED
+
+=== Remove
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED repos.remove -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos.remove]]
+[.operation]
+****
+Remove a repository (RPM or Flatpak).
+
+*Command:* `/repos remove ALIAS` +
+*Runs:* after you confirm. The plan is marked in red: this is hard to undo or changes what the system trusts, so read it before you agree.
+
+[horizontal]
+`alias`:: Repository alias, as listed (required)
+`kind`:: Repository type, as listed (rpm or flatpak): `rpm`, `flatpak-user`, `flatpak-system` (default: `rpm`)
+
+.In the terminal
+[source,shell]
+----
+sudo zypper removerepo ALIAS
+----
+****
+// END GENERATED
+
+// BEGIN GENERATED repos -- written by `yaist docs` from the module's code; edit the code, not this block
+[[repos-at-a-glance]]
+=== Repositories at a glance
+
+.Repositories: every operation
+[cols="3,4,2",options="header"]
+|===
+|Operation |Command |Runs
+|<<repos.list,List repositories>> |`/repos list` |straight away
+|<<repos.add,Add repository>> |`/repos add URL ALIAS` |after you confirm (hard to undo)
+|<<repos.add_obs,Add OBS project>> |`/repos add-obs PROJECT` |after you confirm (hard to undo)
+|<<repos.enable_non_oss,Enable non-oss>> |`/repos enable-non-oss` |after you confirm
+|<<repos.add_flathub,Add Flathub>> |`/repos add-flathub` |after you confirm
+|<<repos.enable,Enable>> |`/repos enable ALIAS` |after you confirm
+|<<repos.disable,Disable>> |`/repos disable ALIAS` |after you confirm
+|<<repos.remove,Remove>> |`/repos remove ALIAS` |after you confirm (hard to undo)
+|===
+// END GENERATED
