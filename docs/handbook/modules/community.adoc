@@ -52,6 +52,17 @@ xdg-open LINK
 
 // TODO(handbook): when and why to use this, then how it looks in YAiST.
 
+When a change fails, YAiST offers to report it: a prefilled openSUSE
+Bugzilla report when a package is at fault, or a YAiST issue when YAiST
+got it wrong, with the likelier one first. The report already holds what
+was run and its output; you add what you expected, and nothing is sent
+until you submit it in the browser.
+
+[[fig-report]]
+.A failed install, with a bug report offered
+image::report.png[A failed package install: hplip's %post script failed, with "Report a Tumbleweed bug" suggested and "Report a YAiST issue" next to it,pdfwidth=100%]
+
+
 // BEGIN GENERATED community.report_problem -- written by `yaist docs` from the module's code; edit the code, not this block
 [[community.report_problem]]
 [.operation]

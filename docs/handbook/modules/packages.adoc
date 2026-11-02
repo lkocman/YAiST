@@ -76,6 +76,18 @@ zypper info PACKAGES
 
 // TODO(handbook): when and why to use this, then how it looks in YAiST.
 
+[[packages-conflicts]]
+Sometimes the packages you ask for cannot be installed as they are: one
+conflicts with something already on the system, or two of them provide
+the same thing. zypper then offers ways out, and YAiST asks you about each
+conflict in turn, with zypper's own solutions to pick from. Nothing is
+installed until every conflict is settled and you have seen the summary.
+
+[[fig-package-conflict]]
+.A conflict while installing: one of three, with zypper's solutions
+image::package-conflict.png[A package conflict dialog: "Package conflict 1 of 3", busybox-which conflicts with which, with zypper's solutions to pick from,pdfwidth=100%]
+
+
 // BEGIN GENERATED packages.install -- written by `yaist docs` from the module's code; edit the code, not this block
 [[packages.install]]
 [.operation]

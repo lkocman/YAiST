@@ -22,10 +22,11 @@ In this chapter you will learn:
 [[welcome-window]]
 === The window
 
+[[fig-welcome]]
 .YAiST on openSUSE Tumbleweed
-image::welcome.png[The YAiST window: modules on the left, updates and starting points in the middle, the assistant's conversation on the right]
+image::welcome.png[The YAiST window: modules on the left, updates and starting points in the middle, the assistant's conversation on the right,pdfwidth=100%]
 
-The window has three columns:
+The window has three columns, as in <<fig-welcome>>:
 
 The sidebar:: One entry, or *module*, for each part of the system. Each
 chapter of this handbook covers one module, under the same name.
@@ -58,14 +59,15 @@ Read those twice.
 
 While a change runs, its output appears live below the plan. If the
 change asks something on the way, such as which solution to pick when
-packages conflict, YAiST asks you in the window.
+packages conflict (<<fig-package-conflict>>), YAiST asks you in the window.
 
 [[welcome-logs]]
 === What happened
 
 Each change leaves a log in `~/.local/state/yaist/logs`: the commands
 that ran, their output, and the questions you answered. If something
-fails, YAiST offers to prepare a bug report from it; see <<community>>.
+fails, YAiST offers to prepare a bug report from it
+(<<fig-report>>).
 
 [[welcome-terminal]]
 === YAiST in a terminal

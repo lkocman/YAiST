@@ -1,8 +1,8 @@
 [[assistant]]
 == AI assistant
 
-YAiST has a conversation on the right side of its window where you can
-say what you want in your own words: _"let my nephew Tom log in, but
+YAiST has a conversation on the right side of its window
+(<<fig-welcome>>) where you can say what you want in your own words: _"let my nephew Tom log in, but
 without admin rights"_, _"why did my web server stop?"_. The assistant
 turns that into the same operations this handbook describes and shows you
 what it is about to do before anything changes.
@@ -28,7 +28,8 @@ buttons in YAiST:
 * Operations that only *read* the system, such as listing the firewall
   rules or checking whether a service runs, it uses whenever it needs to
   answer you. They change nothing.
-* Operations that *change* the system always end in a *plan card*: what
+* Operations that *change* the system always end in a *plan card*
+  (<<welcome-plans>>): what
   will be done, the commands it stands for, and *Confirm*, *Edit* and
   *Cancel* buttons. Nothing happens until you press Confirm, however the
   request was phrased. Plans that are hard to undo, such as deleting a user or adding
@@ -45,7 +46,9 @@ their output.
 ====
 Everything in YAiST works without the assistant. Each module's panel, the
 `/commands` and the terminal client `yaist` use the same operations, so
-when the assistant is not running you lose the conversation, nothing else.
+when the assistant is not running you lose the conversation, nothing else. A few extras also rely on the
+assistant, such as the summary of what's new during an upgrade
+(<<fig-whats-new>>).
 ====
 
 [[assistant-hardware]]

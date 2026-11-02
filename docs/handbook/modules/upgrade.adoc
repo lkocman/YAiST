@@ -117,6 +117,16 @@ sudo reboot
 
 // TODO(handbook): when and why to use this, then how it looks in YAiST.
 
+An upgrade to a new release takes a while. Meanwhile YAiST offers to tell
+you what changes: from the release notes it picks the entries that concern
+this computer (its hardware, desktop and installed packages), each a link
+to the full entry, and the assistant sums them up.
+
+[[fig-whats-new]]
+.What's new during an upgrade to Leap 16.1
+image::whats-new.png[The conversation during an upgrade to Leap 16.1: six of 107 release-notes entries that concern this system, such as GDM and PipeWire, with links, and a short summary below,pdfwidth=100%]
+
+
 // BEGIN GENERATED upgrade.release_notes -- written by `yaist docs` from the module's code; edit the code, not this block
 [[upgrade.release_notes]]
 [.operation]
