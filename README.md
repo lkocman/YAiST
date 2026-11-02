@@ -18,6 +18,13 @@ three run the same actions, and every change waits for your confirmation.
 
 Status: **prototype**.
 
+**[openSUSE Handbook](https://lkocman.github.io/YAiST/)**: every operation
+shown in YAiST, by asking the assistant and in the terminal. Latest build
+from main: [HTML](https://lkocman.github.io/YAiST/) ·
+[PDF](https://lkocman.github.io/YAiST/opensuse-handbook.pdf) ·
+[EPUB](https://lkocman.github.io/YAiST/opensuse-handbook.epub)
+[![Handbook build](https://github.com/lkocman/YAiST/actions/workflows/handbook.yml/badge.svg?branch=main)](https://github.com/lkocman/YAiST/actions/workflows/handbook.yml)
+
 ![YAiST welcome screen on openSUSE Tumbleweed: modules on the left, updates and starting points in the middle, the AI conversation on the right](docs/screenshots/welcome.png)
 
 ## Examples
@@ -96,11 +103,8 @@ and `/commands` work and the conversation says how to start it.
 
 ## More
 
-- [The openSUSE Handbook](https://lkocman.github.io/YAiST/) (also as
-  [PDF](https://lkocman.github.io/YAiST/opensuse-handbook.pdf) and
-  [EPUB](https://lkocman.github.io/YAiST/opensuse-handbook.epub)): every
-  operation in YAiST, by asking the assistant and in the terminal; source in
-  [docs/handbook](docs/handbook)
+- [docs/handbook](docs/handbook): the openSUSE Handbook's source, one
+  chapter per module
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): running from source, the
   command line, privileges, configuration, demos and screenshots
 - [PLAN.md](PLAN.md): the design
