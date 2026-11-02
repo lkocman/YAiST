@@ -29,7 +29,9 @@ for f in "$@"; do
         epub) asciidoctor-epub3 --failure-level WARN -a ebook-validate! -o "$out/opensuse-handbook.epub" opensuse-handbook.adoc ;;
         html)
             asciidoctor --failure-level WARN -a imagesdir=screenshots -o "$out/index.html" opensuse-handbook.adoc
-            rm -rf "$out/screenshots" && cp -r ../screenshots "$out/"
+            rm -rf "$out/screenshots" "$out/images" "$out/fonts" && mkdir -p "$out/fonts"
+            cp -r ../screenshots images "$out/"
+            cp "$root"/assets/fonts/{Inter,Archivo,GeistMono}-Variable.ttf "$out/fonts/"
             ;;
         *) echo "unknown format: $f (pdf, epub, html)" >&2; exit 2 ;;
     esac

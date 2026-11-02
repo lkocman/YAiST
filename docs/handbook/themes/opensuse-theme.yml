@@ -1,12 +1,27 @@
-# PDF theme for the openSUSE Handbook (asciidoctor-pdf). Fonts and colours are
-# the app's: Inter for text, Archivo for headings, Geist Mono for code; the
-# openSUSE palette from crates/yaist-ui/src/palette.rs. The fonts directory
-# is passed by scripts/build-handbook.sh.
+# PDF theme for the openSUSE Handbook (asciidoctor-pdf), in the colours YAiST
+# uses everywhere: the openSUSE palette by Jay Michalska (hellcp), "LCP",
+# from crates/yaist-ui/src/palette.rs. Pages are the GUI's light appearance
+# (Tokens::light): Bagel Beige paper, Maple Maroon ink, and the bright
+# accents blended towards maroon so they read as text. The cover is the dark
+# appearance. Nothing outside the palette and its blends is used:
+#
+#   Geeko Green #42CD42   Butterfly Blue #00C8FF   Bagel Beige  #FFF8EE
+#   Yarrow Yellow #D4CB1B Turquoise Teal #20CAA3   Gabbro Gray  #B8AEAB
+#   Orange #F68946        Radish Red #FF5B45       Maple Maroon #301A14
+#   Plum Purple #A498FF
+#
+#   sunken  F5EDE3  beige + 5% maroon       accent  3C8E32  green + 35% maroon
+#   line    DED4CB  beige + 16% maroon      brand   259578  teal + 30% maroon
+#   faint   9C8D85  beige + 48% maroon      warn    8A7B18  yellow + 45% maroon
+#   muted   6E5D55  beige + 70% maroon      bad     CB4B39  red + 25% maroon
+#   blue    0E94B8  blue + 30% maroon       plum    8172B8  plum + 30% maroon
+#
+# Fonts are the app's (Inter, Archivo, Geist Mono), made static by
+# scripts/handbook-fonts.py; scripts/handbook-build.sh passes the directory.
 extends: default
 font:
   catalog:
     merge: true
-    # Static fonts made by scripts/handbook-fonts.py.
     Inter:
       normal: Inter-regular.ttf
       bold: Inter-bold.ttf
@@ -25,6 +40,7 @@ font:
   fallbacks: []
 page:
   size: [7.5in, 9.25in]
+  background_color: 'FFF8EE'
   margin: [0.75in, 0.7in, 0.8in, 0.7in]
   margin_inner: 0.85in
   margin_outer: 0.6in
@@ -33,8 +49,11 @@ base:
   font_color: '301A14'
   font_size: 10
   line_height: 1.45
+role:
+  muted:
+    font_color: '6E5D55'
 link:
-  font_color: '1E8A3C'
+  font_color: '3C8E32'
 heading:
   font_family: Archivo
   font_color: '301A14'
@@ -47,10 +66,11 @@ heading:
   margin_bottom: 8
 title_page:
   align: left
-  background_color: '301A14'
+  # Maple Maroon with the openSUSE logo in the top right corner.
+  background_image: image:../images/cover.svg[]
   font_color: 'FFF8EE'
   title:
-    top: 38%
+    top: 34%
     font_family: Archivo
     font_style: bold
     font_size: 38
@@ -61,51 +81,81 @@ title_page:
     margin_top: 6
   authors:
     font_color: 'B8AEAB'
+    margin_top: 10
+  revision:
+    font_color: 'B8AEAB'
+  # The distributions: Tumbleweed, Leap, Slowroll, MicroOS and the rest of
+  # the family, below the title.
+  logo:
+    image: image:../images/distributions.svg[pdfwidth=72%]
+    top: 62%
+    align: left
 chapter:
   break_before: always
 part:
   break_after: auto
+  title:
+    font_color: '3C8E32'
 codespan:
   font_family: Geist Mono
   font_color: '301A14'
   font_size: 0.92em
 code:
   font_family: Geist Mono
+  font_color: '301A14'
   font_size: 8.5
-  background_color: 'F3EDE4'
-  border_width: 0
+  background_color: 'F5EDE3'
+  border_color: 'DED4CB'
+  border_width: 0.5
   border_radius: 3
   padding: [8, 10]
+# The boxes describing each operation.
 sidebar:
-  background_color: 'F2FBF2'
-  border_color: '42CD42'
+  background_color: 'F5EDE3'
+  border_color: '3C8E32'
   border_width: [0, 0, 0, 3]
   border_radius: 0
   padding: [10, 14]
+  title:
+    font_color: '301A14'
 admonition:
-  column_rule_color: '42CD42'
+  column_rule_color: 'DED4CB'
   icon:
     tip:
-      stroke_color: '1E8A3C'
+      stroke_color: '3C8E32'
     note:
-      stroke_color: '00A0CC'
+      stroke_color: '0E94B8'
     important:
-      stroke_color: 'E0703A'
+      stroke_color: '8A7B18'
     warning:
-      stroke_color: 'FF5B45'
+      stroke_color: 'CB4B39'
+    caution:
+      stroke_color: '8172B8'
 table:
+  background_color: 'FFF8EE'
   head:
-    background_color: 'F3EDE4'
+    background_color: 'F5EDE3'
     font_style: bold
-  border_color: 'D9D0C7'
-  grid_color: 'D9D0C7'
+  border_color: 'DED4CB'
+  grid_color: 'DED4CB'
 caption:
-  font_color: '6B5A52'
+  font_color: '6E5D55'
   font_style: italic
+image:
+  border_color: 'DED4CB'
+  border_width: 0.5
+kbd:
+  background_color: 'F5EDE3'
+  border_color: 'AC9F97'
+  font_color: '301A14'
+toc:
+  font_color: '301A14'
+  dot_leader:
+    font_color: 'AC9F97'
 header:
   height: 0.45in
   font_size: 8
-  font_color: '8A7A72'
+  font_color: '9C8D85'
   recto:
     right:
       content: '{chapter-title}'
@@ -115,7 +165,8 @@ header:
 footer:
   height: 0.5in
   font_size: 8
-  font_color: '8A7A72'
+  font_color: '9C8D85'
+  border_color: 'DED4CB'
   recto:
     right:
       content: '{page-number}'

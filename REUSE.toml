@@ -74,3 +74,14 @@ path = "docs/handbook/**"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 The YAiST contributors"
 SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+# openSUSE logos in the handbook: the distribution logos (from
+# all_distro_with_leapmicro.svg) and the openSUSE logo, from the openSUSE
+# artwork repository (CC-BY-SA-3.0), arranged and flattened for the cover
+# and the HTML masthead. openSUSE and its logos are trademarks of SUSE LLC;
+# see https://en.opensuse.org/openSUSE:Trademark_guidelines.
+[[annotations]]
+path = "docs/handbook/images/**"
+precedence = "override"
+SPDX-FileCopyrightText = "openSUSE contributors (https://github.com/openSUSE/artwork)"
+SPDX-License-Identifier = "CC-BY-SA-3.0"

@@ -8,13 +8,14 @@ The openSUSE community
 :partnums:
 :chapter-signifier: Chapter
 :part-signifier: Part
-:source-highlighter: rouge
 :icons: font
 :experimental:
 :imagesdir: ../screenshots
 :pdf-theme: opensuse
 :pdf-themesdir: {docdir}/themes
 :epub-chapter-level: 2
+:docinfo: shared
+:docinfodir: {docdir}/themes
 :description: Looking after an openSUSE system with YAiST: what each part of the system is for, and how to manage it from YAiST, by asking the assistant, or in the terminal.
 
 include::preface.adoc[]

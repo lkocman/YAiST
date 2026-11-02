@@ -1,0 +1,42 @@
+<!-- The HTML handbook in the PDF's colours and fonts: the openSUSE palette
+     (LCP), light appearance, as in themes/opensuse-theme.yml. -->
+<style>
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Variable.ttf") format("truetype"); font-weight: 100 900; }
+@font-face { font-family: "Archivo"; src: url("fonts/Archivo-Variable.ttf") format("truetype"); font-weight: 100 900; }
+@font-face { font-family: "Geist Mono"; src: url("fonts/GeistMono-Variable.ttf") format("truetype"); font-weight: 100 900; }
+:root {
+  --ink: #301a14; --paper: #fff8ee; --sunken: #f5ede3; --line: #ded4cb; --line-strong: #ac9f97;
+  --muted: #6e5d55; --faint: #9c8d85; --accent: #3c8e32; --geeko: #42cd42; --blue: #0e94b8;
+  --warn: #8a7b18; --bad: #cb4b39; --plum: #8172b8; --beige: #fff8ee; --gabbro: #b8aeab;
+}
+body, #content, #footer { background: var(--paper); color: var(--ink); font-family: "Inter", sans-serif; }
+p, li, td, dd, .paragraph, .ulist, .dlist { color: var(--ink); }
+h1, h2, h3, h4, h5, h6, #toctitle, .sidebarblock > .content > .title { font-family: "Archivo", sans-serif; color: var(--ink); font-weight: 700; }
+code, kbd, pre, .literalblock pre, .listingblock pre { font-family: "Geist Mono", monospace; color: var(--ink); }
+a, a:visited { color: var(--accent); }
+a:hover { color: var(--ink); }
+.listingblock pre, .literalblock pre, .listingblock > .content > pre:not(.highlight) { background: var(--sunken); border: 1px solid var(--line); border-radius: 3px; }
+:not(pre) > code { background: var(--sunken); color: var(--ink); }
+.sidebarblock { background: var(--sunken); border: 0; border-left: 3px solid var(--accent); border-radius: 0; }
+.admonitionblock td.content { border-left-color: var(--line); }
+.admonitionblock td.icon .icon-tip::before { color: var(--accent); }
+.admonitionblock td.icon .icon-note::before { color: var(--blue); }
+.admonitionblock td.icon .icon-important::before { color: var(--warn); }
+.admonitionblock td.icon .icon-warning::before { color: var(--bad); }
+.admonitionblock td.icon .icon-caution::before { color: var(--plum); }
+table.tableblock, th.tableblock, td.tableblock { border-color: var(--line) !important; }
+table.tableblock thead th { background: var(--sunken); }
+.title, .imageblock > .title, caption { color: var(--muted); }
+.imageblock img { border: 1px solid var(--line); }
+#toc.toc2, #toc { background: var(--sunken); border-color: var(--line); }
+#toc a { color: var(--ink); }
+#toc a:hover { color: var(--accent); }
+#header > h1:first-child { color: var(--geeko); }
+#header, #header .details { color: var(--muted); }
+#footer, #footer-text { background: var(--ink); color: var(--gabbro); }
+.handbook-masthead { background: var(--ink); margin: 0 0 1.5em; padding: 1.25em 1.5em; display: flex; align-items: center; gap: 1.5em; }
+.handbook-masthead .distributions { height: 44px; }
+.handbook-masthead .project { height: 52px; margin-left: auto; }
+.handbook-masthead .downloads { color: var(--beige); font-size: .9em; }
+.handbook-masthead .downloads a { color: var(--geeko); }
+</style>
