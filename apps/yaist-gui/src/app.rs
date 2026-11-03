@@ -343,6 +343,7 @@ impl App {
                     LlmStatus::Ready(name) => widgets::badge(ui, &format!("model · {name}"), t.good),
                     LlmStatus::Checking => widgets::badge(ui, "model · checking", t.muted),
                     LlmStatus::Offline => widgets::badge(ui, "model · offline", t.warn),
+                    LlmStatus::Disabled(reason) => widgets::badge(ui, &format!("model · disabled ({reason})"), t.faint),
                 };
                 if ui.available_width() > 100.0 {
                     ui.add_space(10.0);

@@ -210,3 +210,33 @@ async fn set_up(ctx: &Context) -> Result<Output> {
     }
     Ok(Output::Done(msg))
 }
+
+/// Preflight check for whether the local AI assistant can safely run.
+/// Returns `None` if ready, or `Some(reason)` if disabled.
+pub fn preflight() -> Option<String> {
+    if let Some(kib) = yaist_core::total_memory_kib() {
+        if kib < 3_800_000 {
+            let gib = kib as f64 / 1024.0 / 1024.0;
+            return Some(format!("requires ≥4 GiB RAM; found {gib:.1} GiB"));
+        }
+    }
+    let gpus = media::gpus();
+    let has_nvidia = gpus.iter().any(|(v, _)| *v == Vendor::Nvidia);
+    if gpus.len() >= 2 && has_nvidia && !Path::new("/sys/module/nvidia").exists() {
+        return Some("dual GPU: NVIDIA driver not active".into());
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preflight_low_memory() {
+        std::env::set_var("YAIST_TOTAL_MEM_KIB", (2 * 1024 * 1024).to_string());
+        let res = preflight();
+        std::env::remove_var("YAIST_TOTAL_MEM_KIB");
+        assert_eq!(res.as_deref(), Some("requires ≥4 GiB RAM; found 2.0 GiB"));
+    }
+}

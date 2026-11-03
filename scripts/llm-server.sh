@@ -25,6 +25,14 @@ CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/yaist/models"
 
 mkdir -p "$CACHE"
 
+if [ -r /proc/meminfo ]; then
+    mem_total_kb=$(awk '/MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || true)
+    if [ -n "$mem_total_kb" ] && [ "$mem_total_kb" -lt 3800000 ]; then
+        echo "llm-server: system has less than 4 GiB RAM; local model is disabled to prevent OOM freeze." >&2
+        exit 1
+    fi
+fi
+
 server_args=(-hf "$MODEL" --jinja -c "$CTX" --cache-reuse 256)
 
 gpu_count() {
@@ -39,6 +47,11 @@ gpu_count() {
 if [ "${YAIST_LLM_PODMAN:-0}" != 1 ] && command -v llama-server >/dev/null; then
     launch=()
     if [ "$(gpu_count)" -ge 2 ]; then
+        if grep -qs "0x10de" /sys/class/drm/card[0-9]*/device/vendor 2>/dev/null && [ ! -d /sys/module/nvidia ]; then
+            echo "llm-server: dual-GPU system with NVIDIA detected, but the NVIDIA driver is not loaded." >&2
+            echo "            Set it up in YAiST (AI assistant → Set up) or install the driver and reboot." >&2
+            exit 1
+        fi
         # switcherooctl puts the default (integrated) GPU first, so -g 1 is
         # the discrete one. When its service isn't running it starts the
         # command without a word on the default GPU, so check first.

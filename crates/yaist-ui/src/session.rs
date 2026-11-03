@@ -289,13 +289,22 @@ impl Session {
             conversation
                 .push(Entry::Error(format!("This doesn't look like openSUSE ({}); package and repository modules may not work.", ctx.distro.id)));
         }
+        let (initial_llm, llm_disabled_reason) = match yaist_modules::assistant::preflight() {
+            Some(reason) => (LlmStatus::Disabled(reason.clone()), Some(reason)),
+            None => (LlmStatus::Checking, None),
+        };
+        if let Some(reason) = &llm_disabled_reason {
+            conversation.push(Entry::Notice(format!(
+                "AI assistant is disabled ({reason}). Standard YaST panels and commands are fully functional."
+            )));
+        }
         let state = Arc::new(Mutex::new(State {
             distro: ctx.distro.clone(),
             modules,
             selected: 0,
             conversation,
             busy: None,
-            llm: LlmStatus::Checking,
+            llm: initial_llm,
             llm_url: llm.config.url.clone(),
             updates: UpdateStatus::Checking,
             question: None,
@@ -342,7 +351,9 @@ impl Session {
         let (done_tx, done_rx) = mpsc::unbounded_channel();
         let jobs = Jobs { sh: sh.clone(), agent, pending: VecDeque::new(), call_ids: HashMap::new(), next_id: 1, running: None, done_tx };
         runtime.spawn(jobs.run(job_rx, done_rx));
-        runtime.spawn(watch_llm(sh.clone(), llm, warm));
+        if llm_disabled_reason.is_none() {
+            runtime.spawn(watch_llm(sh.clone(), llm, warm));
+        }
         // Updates: now, then every 30 minutes.
         let updates_sh = sh.clone();
         runtime.spawn(async move {
@@ -575,6 +586,16 @@ impl Jobs {
             return;
         }
         self.sh.push(Entry::User(text.to_owned()));
+        let disabled_reason = self.sh.state.lock().ok().and_then(|s| match &s.llm {
+            LlmStatus::Disabled(r) => Some(r.clone()),
+            _ => None,
+        });
+        if let Some(reason) = disabled_reason {
+            self.sh.push(Entry::Notice(format!(
+                "AI assistant is disabled ({reason}). Standard YaST panels and commands work without it."
+            )));
+            return;
+        }
         self.agent_turn(text).await;
     }
 
@@ -923,5 +944,32 @@ mod tests {
         until(&state, "the second change to run", |s| status(s, 2) == Some(PlanStatus::Running)).await;
         release.notify_one();
         until(&state, "the second change to finish", |s| matches!(status(s, 2), Some(PlanStatus::Done(_)))).await;
+    }
+
+    #[tokio::test]
+    async fn disabled_llm_notifies_and_blocks_agent_turn() {
+        let (tx, state, _release) = jobs();
+        state.lock().unwrap().llm = LlmStatus::Disabled("low memory".into());
+        tx.send(Cmd::Submit("what is zypper?".into())).unwrap();
+        until(&state, "notice about disabled assistant", |s| {
+            s.conversation.iter().any(|e| match e {
+                Entry::Notice(msg) => msg.contains("disabled (low memory)"),
+                _ => false,
+            })
+        })
+        .await;
+    }
+
+    #[test]
+    fn session_starts_disabled_on_low_memory() {
+        std::env::set_var("YAIST_TOTAL_MEM_KIB", (2 * 1024 * 1024).to_string());
+        let session = Session::start(|| {});
+        std::env::remove_var("YAIST_TOTAL_MEM_KIB");
+        let s = session.state();
+        assert!(matches!(s.llm, LlmStatus::Disabled(ref r) if r.contains("requires ≥4 GiB RAM")));
+        assert!(s.conversation.iter().any(|e| match e {
+            Entry::Notice(n) => n.contains("AI assistant is disabled") && n.contains("requires ≥4 GiB RAM"),
+            _ => false,
+        }));
     }
 }

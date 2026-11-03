@@ -557,6 +557,7 @@ impl App {
             LlmStatus::Ready(name) => self.badge(&format!("model · {name}"), t.good),
             LlmStatus::Checking => self.badge("model · checking", t.muted),
             LlmStatus::Offline => self.badge("model · offline", t.warn),
+            LlmStatus::Disabled(reason) => self.badge(&format!("model · disabled ({reason})"), t.faint),
         };
         let mut left = vec![Span::raw(" ")];
         left.extend(self.wordmark());

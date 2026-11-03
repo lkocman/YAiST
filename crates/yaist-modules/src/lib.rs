@@ -1,7 +1,7 @@
 //! The system modules. Each registers a [`yaist_core::ModuleSpec`] and its
 //! actions; clients never call these directly, only through the registry.
 
-mod assistant;
+pub mod assistant;
 pub mod community;
 mod firewall;
 mod flatpak;

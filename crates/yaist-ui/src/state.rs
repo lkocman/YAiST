@@ -124,6 +124,7 @@ pub enum LlmStatus {
     Checking,
     Ready(String),
     Offline,
+    Disabled(String),
 }
 
 pub struct State {
