@@ -16,7 +16,7 @@ pub const GROUPS: &[&str] = &["Talk", "Events & news", "Help", "Build & test"];
 
 pub const LINKS: &[Link] = &[
     Link { group: "Talk", title: "Chat", text: "Join the chat: Matrix rooms for users and contributors", url: "https://chat.opensuse.org/" },
-    Link { group: "Talk", title: "Virtual bar", text: "Drop into the 24×7 openSUSE bar on Jitsi, any time", url: "https://meet.opensuse.org/bar" },
+    Link { group: "Talk", title: "Virtual bar", text: "Drop into the 24×7 openSUSE bar on Jitsi, any time", url: "https://bar.opensuse.org/" },
     Link {
         group: "Talk",
         title: "Kudos",
@@ -64,7 +64,7 @@ fn known_link(s: &str) -> Result<(), String> {
 const LIST: ActionSpec = ActionSpec {
     id: "community.links",
     title: "Community",
-    description: "List openSUSE community places: chat (Matrix), the 24x7 virtual bar (Jitsi), Kudos to thank people, forums, the events calendar, news, documentation, wiki, bug reports, the Open Build Service, openQA, software search and osdiff.",
+    description: "List openSUSE community places: chat (Matrix), the 24x7 virtual bar (Jitsi, bar.opensuse.org), Kudos to thank people, forums, the events calendar, news, documentation, wiki, bug reports, the Open Build Service, openQA, software search and osdiff.",
     risk: Risk::Read,
     params: &[],
 };
