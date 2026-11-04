@@ -1,8 +1,9 @@
 name: PR checks
 
 # What a pull request says about itself: a change to what users see comes
-# with a screenshot. The no-screenshot label skips it (a refactor that
-# changes nothing visible).
+# with a screenshot, and a change users can notice comes with the handbook.
+# The no-screenshot and no-docs labels skip them (a refactor that changes
+# nothing visible or noticeable).
 
 on:
   pull_request:
@@ -46,4 +47,34 @@ jobs:
             exit 0
           fi
           echo "::error::This pull request changes the desktop or terminal client: add a screenshot (before and after) to its description, under Screenshots. If nothing visible changed, add the no-screenshot label."
+          exit 1
+
+  handbook:
+    name: Handbook for user-visible changes
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-docs') }}
+    steps:
+      - name: Look for a handbook change when user-facing code changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          files=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename')
+          # Tests don't change what users notice.
+          code=$(echo "$files" \
+            | grep -E '^(apps/|crates/yaist-(modules|ui|agent)/src/|scripts/llm-server\.sh$|assets/)' \
+            | grep -vE '(^|/)tests?(/|\.rs$)' || true)
+          if [ -z "$code" ]; then
+            echo "No user-facing code changes, no handbook change needed."
+            exit 0
+          fi
+          echo "User-facing code changes:"
+          echo "$code" | sed 's/^/  /'
+          if echo "$files" | grep -q '^docs/handbook/'; then
+            echo "Handbook changed."
+            exit 0
+          fi
+          echo "::error::This pull request changes code users can notice but not the handbook (docs/handbook/). Update the module's chapter (and run \`yaist docs\` if actions changed), see CLAUDE.md. If nobody can notice the change, add the no-docs label."
           exit 1

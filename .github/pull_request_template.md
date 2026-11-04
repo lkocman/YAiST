@@ -20,4 +20,4 @@
 - [ ] Arguments that reach commands or D-Bus are validated in `yaist-core/src/validate.rs`
 - [ ] Works on Leap and Tumbleweed (and transactional systems if packages are involved)
 - [ ] New dependencies: `scripts/license-report.sh` output checked, `docs/LICENSING.md` updated if the licence set changed
-- [ ] Handbook up to date (`yaist docs`), if actions changed
+- [ ] Handbook updated for anything users can notice: the chapter's prose, `yaist docs` if actions changed, `docs/DEVELOPMENT.md` for new settings (see CLAUDE.md). Nothing to notice? Add the no-docs label
