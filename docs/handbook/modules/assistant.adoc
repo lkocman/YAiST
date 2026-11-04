@@ -139,8 +139,9 @@ GPU with 4 GB of memory.
 === Assistant readiness
 
 Open *AI assistant* in the sidebar. The panel says whether the computer
-meets the minimum (<<assistant-requirements>>) and whether the assistant
-runs on the GPU or in CPU mode (<<assistant-cpu-mode>>). It lists the GPUs
+meets the minimum (<<assistant-requirements>>) and whether a discrete GPU is
+available for hardware acceleration or if the assistant will fall back to CPU mode
+(<<assistant-cpu-mode>>). It lists the GPUs
 and says for each requirement whether it is met: the NVIDIA driver
 (loaded, installed but waiting for a reboot, or missing), GPU switching on
 computers with two GPUs, and the llama.cpp runtime.
