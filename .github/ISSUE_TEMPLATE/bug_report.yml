@@ -1,0 +1,60 @@
+name: Bug report
+description: YAiST did something wrong, showed something wrong, or crashed.
+labels: [bug]
+# The field ids are what YAiST's "Report a problem" fills in through the
+# link (crates/yaist-modules/src/report.rs): keep them in step.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check the [existing issues](https://github.com/lkocman/YAiST/issues) first.
+
+        A broken **package or the distribution itself** (a package's script failing, a dependency conflict in the repositories) belongs in [openSUSE Bugzilla](https://bugzilla.opensuse.org/) instead. When a change fails, YAiST suggests which of the two is likelier.
+  - type: textarea
+    id: observation
+    attributes:
+      label: Observation
+      description: What happened? The steps that led to it, and the exact error YAiST showed.
+      placeholder: |
+        1. Packages → Install all updates → Confirm
+        2. The card says: …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: input
+    id: reproducible
+    attributes:
+      label: Reproducible
+      description: Every time, sometimes, or once so far?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag a screenshot of the problem in here; it helps more than anything else. Write n/a when there is nothing to see.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log of the change
+      description: For a change that failed, its whole output is in `~/.local/state/yaist/logs/` (the card's report links name the file). Attach it, or paste the end of it.
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: openSUSE release and variant (immutable or not), YAiST version (`rpm -q yaist`), desktop or terminal client.
+      placeholder: |
+        - System: openSUSE Leap 16.0, x86_64, standard mode
+        - YAiST: 0.1.0, desktop client
+    validations:
+      required: true

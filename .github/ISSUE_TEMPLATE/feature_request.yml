@@ -1,0 +1,38 @@
+name: Feature or UX idea
+description: Something YAiST should do, or do differently.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How could YAiST help? Which module, which button, what should the user see?
+    validations:
+      required: true
+  - type: textarea
+    id: mockup
+    attributes:
+      label: Screenshot or mockup
+      description: A screenshot of where it would go, or a sketch. Optional, but it makes UI ideas much easier to discuss.
+    validations:
+      required: false
+  - type: dropdown
+    id: distributions
+    attributes:
+      label: Distributions
+      description: Where does it matter?
+      multiple: true
+      options:
+        - All of them
+        - Leap
+        - Tumbleweed / Slowroll
+        - Immutable (Leap Micro, Aeon, Kalpa)
+    validations:
+      required: false

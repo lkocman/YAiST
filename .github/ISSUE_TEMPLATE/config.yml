@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A package or the distribution is broken
+    url: https://bugzilla.opensuse.org/
+    about: Package scripts failing, dependency conflicts in the repositories, a broken update. Report it in openSUSE Bugzilla.
+  - name: Questions and help
+    url: https://forums.opensuse.org/
+    about: Ask on the openSUSE forums, or chat at https://chat.opensuse.org/
