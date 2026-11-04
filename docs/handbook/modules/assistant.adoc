@@ -120,6 +120,19 @@ assistant runs on the GPU and the label goes away.
 Some recent integrated GPUs, such as AMD's Radeon 780M, can be faster than
 the processor. To try the GPU anyway, start the model server with
 `YAIST_LLM_DEVICE=gpu`; `YAIST_LLM_DEVICE=cpu` forces CPU mode.
+
+With the preinstalled model (the `yaist-offline` package and its
+`yaist-llm` service), put the setting in `/etc/yaist/llm.conf` and restart
+the service:
+
+[source,shell]
+----
+echo YAIST_LLM_DEVICE=gpu | sudo tee -a /etc/yaist/llm.conf
+sudo systemctl restart yaist-llm
+----
+
+The same file takes `YAIST_LLM_CTX=8192`, a shorter context that fits a
+GPU with 4 GB of memory.
 ====
 
 [[assistant-check]]
