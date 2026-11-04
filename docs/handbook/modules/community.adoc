@@ -11,7 +11,7 @@
 [[community.links]]
 [.operation]
 ****
-List openSUSE community places: chat (Matrix), the 24x7 virtual bar (Jitsi), Kudos to thank people, forums, the events calendar, news, documentation, wiki, bug reports, the Open Build Service, openQA, software search and osdiff.
+List openSUSE community places: chat (Matrix), the 24x7 virtual bar (Jitsi, bar.opensuse.org), Kudos to thank people, forums, the events calendar, news, documentation, wiki, bug reports, the Open Build Service, openQA, software search and osdiff.
 
 *Command:* `/community links` +
 *Runs:* straight away; it only reads the system.
