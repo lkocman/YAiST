@@ -7,6 +7,10 @@
 # downloaded on first start.
 #
 #   YAIST_MODEL      Hugging Face repo[:quant]  (default: Qwen3-4B-Instruct-2507 Q4_K_M)
+#   YAIST_MODEL_FILE a GGUF file to serve instead, e.g. the one yaist-offline
+#                    installs; needs the packaged llama-server
+#   YAIST_LLM_ALIAS  the model name the server reports (default: YAIST_MODEL,
+#                    or the file name)
 #   YAIST_LLM_PORT   port on 127.0.0.1          (default: 8080)
 #   YAIST_LLM_CTX    context size in tokens     (default: 16384; 8192 fits the
 #                                                prompt and tools on small GPUs)
@@ -29,11 +33,19 @@ MODEL="${YAIST_MODEL:-unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M}"
 PORT="${YAIST_LLM_PORT:-8080}"
 CTX="${YAIST_LLM_CTX:-16384}"
 IMAGE="${YAIST_LLM_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-vulkan}"
-CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/yaist/models"
+MODEL_FILE="${YAIST_MODEL_FILE:-}"
 
-mkdir -p "$CACHE"
-
-server_args=(-hf "$MODEL" --jinja -c "$CTX" --cache-reuse 256)
+if [ -n "$MODEL_FILE" ]; then
+    # yaist-llm.service: a packaged model, nothing to download or cache.
+    ALIAS="${YAIST_LLM_ALIAS:-$(basename "$MODEL_FILE" .gguf)}"
+    server_args=(-m "$MODEL_FILE" --jinja -c "$CTX" --cache-reuse 256)
+else
+    ALIAS="${YAIST_LLM_ALIAS:-$MODEL}"
+    CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/yaist/models"
+    mkdir -p "$CACHE"
+    export LLAMA_CACHE="$CACHE"
+    server_args=(-hf "$MODEL" --jinja -c "$CTX" --cache-reuse 256)
+fi
 
 # The vendor of a discrete GPU llama.cpp can use: "nvidia" or "amd", or nothing.
 usable_discrete_gpu() {
@@ -73,7 +85,8 @@ gpu) cpu=0 ;;
 esac
 cpu_mode() {
     echo "llm-server: no usable discrete GPU, running the model on the CPU (slower; YAIST_LLM_DEVICE=gpu overrides)." >&2
-    server_args+=(--device none --alias "$MODEL@cpu")
+    server_args+=(--device none)
+    ALIAS="$ALIAS@cpu"
 }
 
 if [ "${YAIST_LLM_PODMAN:-0}" != 1 ] && command -v llama-server >/dev/null; then
@@ -96,8 +109,12 @@ if [ "${YAIST_LLM_PODMAN:-0}" != 1 ] && command -v llama-server >/dev/null; then
         fi
         launch=(switcherooctl -g 1)
     fi
-    export LLAMA_CACHE="$CACHE"
-    exec "${launch[@]}" llama-server "${server_args[@]}" --host 127.0.0.1 --port "$PORT"
+    exec "${launch[@]}" llama-server "${server_args[@]}" --alias "$ALIAS" --host 127.0.0.1 --port "$PORT"
+fi
+
+if [ -n "$MODEL_FILE" ]; then
+    echo "llm-server: YAIST_MODEL_FILE needs the packaged llama-server: sudo zypper install llamacpp" >&2
+    exit 1
 fi
 
 # The container only sees Mesa GPUs, so NVIDIA's driver doesn't count here.
@@ -118,5 +135,5 @@ exec podman run --rm --name yaist-llm \
     -v "$CACHE":/models:Z \
     -p "127.0.0.1:$PORT:8080" \
     "$IMAGE" \
-    "${server_args[@]}" \
+    "${server_args[@]}" --alias "$ALIAS" \
     --host 0.0.0.0 --port 8080
