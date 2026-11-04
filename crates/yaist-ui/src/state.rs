@@ -35,6 +35,17 @@ pub enum PlanStatus {
     Cancelled,
 }
 
+/// What a proposed change is about to do, worked out after it was proposed
+/// (for now the system update's pending packages).
+#[derive(Clone, Debug, Default)]
+pub enum Preview {
+    #[default]
+    None,
+    Checking,
+    Updates(std::sync::Arc<yaist_modules::UpdatePreview>),
+    Failed(String),
+}
+
 /// How much of a running change's output a plan keeps.
 pub const LOG_LINES: usize = 2000;
 
@@ -57,6 +68,7 @@ pub struct Plan {
     pub log_file: Option<String>,
     pub status: PlanStatus,
     pub from_agent: bool,
+    pub preview: Preview,
 }
 
 #[derive(Clone, Debug)]

@@ -6,8 +6,8 @@ use yaist_core::{Output, ParamKind, Risk, Table};
 use yaist_ui::release_notes;
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{
-    reboot_notice, row_action_is_direct, row_args, tone_of, update_summary, Asked, Cmd, Entry, Form, LlmStatus, ModuleView, Panel, Plan, PlanStatus,
-    Session, UpdateLevel, UpdateStatus, UPDATE_ACTION,
+    reboot_notice, row_action_is_direct, row_actions_for, row_args, tone_of, update_summary, Asked, Cmd, Entry, Form, LlmStatus, ModuleView, Panel,
+    Plan, PlanStatus, Preview, Session, UpdateLevel, UpdateStatus, UPDATE_ACTION,
 };
 
 use crate::theme::{self, Tokens};
@@ -506,6 +506,29 @@ impl App {
                     ui.label(RichText::new(e).color(t.bad));
                 });
             }
+            // The updates list: under the banner's "Install all", a way to
+            // pick; with nothing to update, the banner says it all.
+            Panel::Ready(Output::Table(table)) if m.spec.id == "packages" => {
+                if !table.rows.is_empty() {
+                    // Patches on Leap; rolling releases have none, there the
+                    // packages show what the update brings.
+                    let (title, detail) = if table.columns.iter().any(|c| c.key == "patch") {
+                        (
+                            "Or install patches one at a time",
+                            "Each patch fixes one issue, with just the package updates it needs; security fixes first.",
+                        )
+                    } else {
+                        (
+                            "What the update brings",
+                            "A rolling release updates as a whole, to the next snapshot: install all updates rather than single packages.",
+                        )
+                    };
+                    ui.label(RichText::new(title).family(theme::semibold()).size(15.0).color(t.ink_strong));
+                    ui.label(RichText::new(detail).size(13.0).color(t.muted));
+                    ui.add_space(8.0);
+                    self.table(ui, m, table);
+                }
+            }
             Panel::Ready(Output::Table(table)) => self.table(ui, m, table),
             Panel::Ready(Output::Facts(facts)) => facts_grid(ui, facts, 16.0),
             Panel::Ready(Output::Text(s) | Output::Done(s)) => {
@@ -517,11 +540,20 @@ impl App {
     fn table(&mut self, ui: &mut Ui, m: &ModuleView, table: &Table) {
         let t = Tokens::get(ui.ctx());
         let full_w = ui.available_width();
-        // In a narrow table the row actions go into the ··· menu, so the
-        // columns keep their room.
-        let visible_actions = if full_w < 760.0 { 0 } else { m.row_actions.len().min(2) };
-        let menu = m.row_actions.len() > visible_actions;
-        let actions_w = if m.row_actions.is_empty() { 0.0 } else { visible_actions as f32 * 90.0 + if menu { 40.0 } else { 0.0 } + 8.0 };
+        let row_actions = row_actions_for(&m.row_actions, table);
+        // In a narrow table only the first row action stays a button, the
+        // rest go into the ··· menu, so the columns keep their room; in a
+        // very narrow one all of them.
+        let room_for = if full_w < 420.0 {
+            0
+        } else if full_w < 760.0 {
+            1
+        } else {
+            2
+        };
+        let visible_actions = row_actions.len().min(room_for);
+        let menu = row_actions.len() > visible_actions;
+        let actions_w = if row_actions.is_empty() { 0.0 } else { visible_actions as f32 * 90.0 + if menu { 40.0 } else { 0.0 } + 8.0 };
         let cols_w = full_w - actions_w - 28.0;
         let longest = |c: usize| table.rows.iter().take(300).map(|r| r[c].chars().count()).max().unwrap_or(0).max(table.columns[c].title.len());
         let is_badge = |c: usize| yaist_ui::is_status_column(table.columns[c].key);
@@ -595,7 +627,7 @@ impl App {
                 }
                 if resp.double_clicked() {
                     let one = Table { columns: table.columns.clone(), rows: vec![row.clone()], essential: Vec::new() };
-                    self.detail = Some(Detail { table: one, actions: m.row_actions.clone() });
+                    self.detail = Some(Detail { table: one, actions: row_actions.clone() });
                 }
                 ui.painter().hline(rect.x_range(), rect.bottom() - 0.5, t.hairline());
                 let mut x = rect.left() + 14.0;
@@ -613,13 +645,13 @@ impl App {
                         cu.add(egui::Label::new(text).truncate().selectable(false));
                     }
                 }
-                if !m.row_actions.is_empty() {
+                if !row_actions.is_empty() {
                     let area = egui::Rect::from_min_max(egui::pos2(rect.right() - actions_w, rect.top()), rect.max - vec2(8.0, 0.0));
                     let mut au = ui.new_child(egui::UiBuilder::new().max_rect(area).layout(egui::Layout::right_to_left(egui::Align::Center)));
                     au.spacing_mut().item_spacing.x = 6.0;
                     if menu {
                         au.menu_button(RichText::new("···").color(t.muted), |ui| {
-                            for a in &m.row_actions[visible_actions..] {
+                            for a in &row_actions[visible_actions..] {
                                 if ui.button(a.title).clicked() {
                                     self.row_action(a, table, row);
                                     ui.close();
@@ -627,7 +659,7 @@ impl App {
                             }
                         });
                     }
-                    for a in m.row_actions[..visible_actions].iter().rev() {
+                    for a in row_actions[..visible_actions].iter().rev() {
                         if widgets::button_sized(&mut au, a.title, Kind::Secondary, 84.0, 26.0).on_hover_text(a.description).clicked() {
                             self.row_action(a, table, row);
                         }
@@ -1355,6 +1387,9 @@ impl App {
             }
             ui.add_space(4.0);
             ui.label(RichText::new(p.spec.description).size(12.5).color(t.muted));
+            if p.status == PlanStatus::Pending {
+                update_preview(ui, p);
+            }
             ui.add_space(8.0);
             match &p.status {
                 PlanStatus::Pending => {
@@ -1465,13 +1500,16 @@ impl App {
             }
             if !p.log.is_empty() && p.status != PlanStatus::Running {
                 ui.add_space(6.0);
-                ui.collapsing(RichText::new(format!("OUTPUT · {} LINES", p.log.len())).family(theme::mono()).size(11.0).color(t.faint), |ui| {
+                let title = RichText::new(format!("OUTPUT · {} LINES", p.log.len())).family(theme::mono()).size(11.0).color(t.faint);
+                // Every card has these: the id has to be the plan's, not the title's.
+                egui::CollapsingHeader::new(title).id_salt(("output", p.id)).show(ui, |ui| {
                     log_block(ui, p);
                 });
             }
             if !p.executed.is_empty() {
                 ui.add_space(6.0);
-                ui.collapsing(RichText::new("WHAT YAiST RAN").family(theme::mono()).size(11.0).color(t.faint), |ui| {
+                let title = RichText::new("WHAT YAiST RAN").family(theme::mono()).size(11.0).color(t.faint);
+                egui::CollapsingHeader::new(title).id_salt(("executed", p.id)).show(ui, |ui| {
                     for c in &p.executed {
                         ui.label(RichText::new(c).family(theme::mono()).size(11.5).color(t.muted));
                     }
@@ -1722,6 +1760,80 @@ fn log_block(ui: &mut Ui, p: &Plan) {
             },
         );
     });
+}
+
+/// What a system update will bring, on its card before it is confirmed:
+/// the first packages by name, reboot-needing ones first and marked.
+fn update_preview(ui: &mut Ui, p: &Plan) {
+    const SHOWN: usize = 8;
+    let t = Tokens::get(ui.ctx());
+    let u = match &p.preview {
+        Preview::None => return,
+        Preview::Checking => {
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.add(egui::Spinner::new().size(12.0).color(t.muted));
+                widgets::hud(ui, "checking what will be updated", t.muted);
+            });
+            return;
+        }
+        Preview::Failed(e) => {
+            ui.add_space(8.0);
+            ui.label(RichText::new(format!("Could not list the updates: {e}")).size(12.5).color(t.warn));
+            return;
+        }
+        Preview::Updates(u) => u,
+    };
+    ui.add_space(8.0);
+    let n = u.packages.len();
+    if n == 0 {
+        let text = if u.dup {
+            "No newer packages in the last repository refresh; zypper dup may still change some."
+        } else {
+            "Nothing to update, as of the last repository refresh."
+        };
+        ui.label(RichText::new(text).size(13.0).color(t.ink));
+        return;
+    }
+    let what = if n == 1 { "1 package will be upgraded".to_owned() } else { format!("{n} packages will be upgraded") };
+    widgets::hud(ui, &what, t.ink_strong);
+    ui.add_space(4.0);
+    let rows = |ui: &mut Ui, pkgs: &[yaist_ui::PendingUpdate], salt: &str| {
+        egui::Grid::new(("preview", salt, p.id)).num_columns(2).spacing(vec2(12.0, 3.0)).show(ui, |ui| {
+            for pkg in pkgs {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    ui.label(RichText::new(&pkg.name).family(theme::medium()).size(13.0).color(t.ink_strong));
+                    if pkg.needs_reboot() {
+                        widgets::badge(ui, "reboot", t.warn);
+                    }
+                });
+                let to = RichText::new(format!("→ {}", pkg.available)).family(theme::mono()).size(11.5).color(t.muted);
+                ui.add(egui::Label::new(to).truncate()).on_hover_text(format!("{} → {} from {}", pkg.installed, pkg.available, pkg.repo));
+                ui.end_row();
+            }
+        });
+    };
+    rows(ui, &u.packages[..n.min(SHOWN)], "first");
+    if n > SHOWN {
+        let title = RichText::new(format!("SHOW {} MORE", n - SHOWN)).family(theme::mono()).size(11.0).color(t.faint);
+        egui::CollapsingHeader::new(title).id_salt(("preview-more", p.id)).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt(("preview-scroll", p.id)).max_height(260.0).show(ui, |ui| {
+                rows(ui, &u.packages[SHOWN..], "rest");
+            });
+        });
+    }
+    let mut notes = Vec::new();
+    if u.reboot() {
+        notes.push("The kernel or core system packages are among them: reboot afterwards to use them.");
+    }
+    if u.dup {
+        notes.push("zypper dup can also install, remove or switch packages; it asks before removing any.");
+    }
+    for note in notes {
+        ui.add_space(4.0);
+        ui.label(RichText::new(note).size(12.5).color(t.warn));
+    }
 }
 
 fn status_line(ui: &mut Ui, label: &str, color: Color32, msg: &str, msg_color: Color32) {

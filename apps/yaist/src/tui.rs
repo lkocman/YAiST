@@ -411,8 +411,12 @@ impl App {
             (Panel::Ready(Output::Table(t)), true) => self.table.selected().and_then(|i| t.rows.get(i)).cloned(),
             _ => None,
         };
-        let on_rows = row.is_some() && !m.row_actions.is_empty();
-        let items = if on_rows { m.row_actions.clone() } else { m.actions.clone() };
+        let row_actions = match &m.panel {
+            Panel::Ready(Output::Table(t)) => yaist_ui::row_actions_for(&m.row_actions, t),
+            _ => Vec::new(),
+        };
+        let on_rows = row.is_some() && !row_actions.is_empty();
+        let items = if on_rows { row_actions } else { m.actions.clone() };
         let row = if on_rows { row } else { None };
         drop(s);
         if !items.is_empty() {

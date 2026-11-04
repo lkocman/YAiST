@@ -11,15 +11,21 @@
 [[packages.list_updates]]
 [.operation]
 ****
-List packages with updates available, from the cached repository metadata.
+List available updates from the cached repository metadata: on Leap the needed patches (security fixes first), on rolling releases the packages with a newer version.
 
 *Command:* `/packages list-updates` +
 *Runs:* straight away; it only reads the system.
 
-.In the terminal
+.In the terminal, on Tumbleweed
 [source,shell]
 ----
 zypper list-updates
+----
+
+.In the terminal, on Leap 16.0 and Leap 16.1 Immutable
+[source,shell]
+----
+zypper list-patches
 ----
 ****
 // END GENERATED
@@ -370,6 +376,30 @@ sudo zypper refresh
 ****
 // END GENERATED
 
+=== Install
+
+// TODO(handbook): when and why to use this, then how it looks in YAiST.
+
+// BEGIN GENERATED packages.install_patch -- written by `yaist docs` from the module's code; edit the code, not this block
+[[packages.install_patch]]
+[.operation]
+****
+Install one patch (Leap): the fix for one issue, with exactly the package updates it needs (zypper install -t patch).
+
+*Command:* `/packages install-patch PATCH` +
+*Runs:* after you confirm. YAiST, or the assistant, first shows a plan with the commands it stands for.
+
+[horizontal]
+`patch`:: Patch name, e.g. openSUSE-Leap-16.0-2026-123 (required)
+
+.In the terminal
+[source,shell]
+----
+sudo zypper install -t patch PATCH
+----
+****
+// END GENERATED
+
 // BEGIN GENERATED packages -- written by `yaist docs` from the module's code; edit the code, not this block
 [[packages-at-a-glance]]
 === Packages at a glance
@@ -383,6 +413,7 @@ sudo zypper refresh
 |<<packages.info,Details>> |`/packages info PACKAGES` |straight away
 |<<packages.install,Install>> |`/packages install PACKAGES` |after you confirm
 |<<packages.update,Update>> |`/packages update PACKAGES` |after you confirm
+|<<packages.install_patch,Install>> |`/packages install-patch PATCH` |after you confirm
 |<<packages.remove,Remove>> |`/packages remove PACKAGES` |after you confirm (hard to undo)
 |<<packages.flatpak_search,Search Flatpak apps>> |`/packages flatpak-search QUERY` |straight away
 |<<packages.flatpak_list,Flatpak apps>> |`/packages flatpak-list` |straight away
@@ -391,6 +422,6 @@ sudo zypper refresh
 |<<packages.update_system,Update system>> |`/packages update-system` |after you confirm (hard to undo)
 |<<packages.install_security,Install security updates>> |`/packages install-security` |after you confirm (hard to undo)
 |<<packages.clean,Clean caches>> |`/packages clean` |after you confirm
-|<<packages.refresh,Refresh>> |`/packages refresh` |after you confirm
+|<<packages.refresh,Refresh repositories>> |`/packages refresh` |after you confirm
 |===
 // END GENERATED

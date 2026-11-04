@@ -16,9 +16,10 @@ pub mod text_size;
 pub mod welcome;
 
 pub use session::{Cmd, Session};
-pub use state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus};
+pub use state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, Preview, State, UpdateStatus};
 /// What's new in a release, for [`Cmd::WhatsNew`] and its card.
 pub use yaist_modules::release_notes;
+pub use yaist_modules::{PendingUpdate, UpdatePreview};
 
 /// The action behind "Install updates": `zypper update` on Leap, `zypper dup`
 /// on rolling releases, transactional-update on immutable systems.
@@ -120,8 +121,8 @@ pub enum Tone {
 pub fn tone_of(value: &str) -> Tone {
     match value {
         "active" | "running" | "enabled" | "yes" | "on" | "installed" | "enforcing" | "idle" | "printing" | "ready" | "ok" => Tone::Good,
-        "failed" | "masked" | "broken" => Tone::Bad,
-        "activating" | "deactivating" | "reloading" | "permissive" | "missing" | "rc" | "beta" | "alpha" => Tone::Warn,
+        "failed" | "masked" | "broken" | "security" | "critical" => Tone::Bad,
+        "activating" | "deactivating" | "reloading" | "permissive" | "missing" | "rc" | "beta" | "alpha" | "important" => Tone::Warn,
         "inactive" | "dead" | "disabled" | "no" | "off" | "static" | "-" | "available" | "exited" | "indirect" | "optional" | "not needed"
         | "not available" => Tone::Faint,
         _ => Tone::Plain,
@@ -130,7 +131,7 @@ pub fn tone_of(value: &str) -> Tone {
 
 /// Columns whose values are states and get a badge.
 pub fn is_status_column(key: &str) -> bool {
-    matches!(key, "active" | "sub" | "enabled" | "is_admin" | "setting" | "status")
+    matches!(key, "active" | "sub" | "enabled" | "is_admin" | "setting" | "status" | "category" | "severity")
 }
 
 /// Whether a failed plan is worth a report at all: not when YAiST refused
@@ -217,6 +218,13 @@ pub fn row_args(spec: &ActionSpec, table: &Table, row: &[String]) -> serde_json:
         }
     }
     raw
+}
+
+/// The row actions that go with this table: those taking at least one
+/// parameter from its columns (a module's tables can differ, like the
+/// updates: patches on Leap, packages on rolling releases).
+pub fn row_actions_for(actions: &[ActionSpec], table: &Table) -> Vec<ActionSpec> {
+    actions.iter().filter(|a| a.params.is_empty() || a.params.iter().any(|p| table.columns.iter().any(|c| c.key == p.name))).copied().collect()
 }
 
 /// Whether a row action can be proposed straight from the row: every
@@ -322,6 +330,7 @@ mod tests {
             log_file: None,
             status: PlanStatus::Failed("x".into()),
             from_agent: false,
+            preview: Default::default(),
         }
     }
 

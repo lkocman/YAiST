@@ -304,20 +304,36 @@ impl Summary {
         [("remove", &self.remove), ("downgrade", &self.downgrade), ("change", &self.other), ("install", &self.install), ("upgrade", &self.upgrade)]
     }
 
-    /// One line, e.g. "12 installed, 3 removed".
-    pub fn headline(&self) -> String {
-        let done = |verb: &str| match verb {
+    /// One line with the packages named, for the plan card once done:
+    /// "2 upgraded (kernel-default, vim), 1 installed (hello)".
+    pub fn brief(&self) -> String {
+        const SHOWN: usize = 6;
+        let parts: Vec<String> = self
+            .groups()
+            .iter()
+            .filter(|(_, p)| !p.is_empty())
+            .map(|(verb, pkgs)| {
+                let mut names = pkgs.iter().take(SHOWN).cloned().collect::<Vec<_>>().join(", ");
+                if pkgs.len() > SHOWN {
+                    names.push_str(&format!(" and {} more", pkgs.len() - SHOWN));
+                }
+                format!("{} {} ({names})", pkgs.len(), Self::done(verb))
+            })
+            .collect();
+        if parts.is_empty() {
+            "nothing to do".into()
+        } else {
+            parts.join(", ")
+        }
+    }
+
+    fn done(verb: &str) -> &'static str {
+        match verb {
             "remove" => "removed",
             "downgrade" => "downgraded",
             "change" => "changed",
             "install" => "installed",
             _ => "upgraded",
-        };
-        let parts: Vec<String> = self.groups().iter().filter(|(_, p)| !p.is_empty()).map(|(v, p)| format!("{} {}", p.len(), done(v))).collect();
-        if parts.is_empty() {
-            "nothing to do".into()
-        } else {
-            parts.join(", ")
         }
     }
 
@@ -633,7 +649,7 @@ impl Session {
             let detail = if self.trouble.is_empty() { format!("zypper exited with code {code}") } else { last_lines(&self.trouble.join("\n"), 10) };
             bail!("{detail}");
         }
-        let mut out = self.summary.map(|s| s.headline()).unwrap_or_else(|| "nothing to do".into());
+        let mut out = self.summary.map(|s| s.brief()).unwrap_or_else(|| "nothing to do".into());
         if !self.skipped_repos.is_empty() {
             out.push_str(&format!("; without the repositories that could not be refreshed: {} (see Repositories)", self.skipped_repos.join(", ")));
         }
@@ -792,7 +808,7 @@ calls sendmail...</description></solvable>
         assert_eq!(sum.install, ["sendmail", "procmail"]);
         assert_eq!(sum.remove, ["postfix"]);
         assert!(sum.needs_review());
-        assert_eq!(sum.headline(), "1 removed, 2 installed");
+        assert_eq!(sum.brief(), "1 removed (postfix), 2 installed (sendmail, procmail)");
         assert_eq!(sum.describe(), "Remove 1: postfix\nInstall 2: sendmail, procmail\nDownload: 2.0 MiB");
     }
 
@@ -802,7 +818,7 @@ calls sendmail...</description></solvable>
         let p = prompt(&SUMMARY[SUMMARY.find("<prompt").unwrap()..]);
         assert!(s.question(&p).is_none());
         assert_eq!(s.answer(p).await, "y");
-        assert_eq!(s.finish(0).unwrap(), "1 installed");
+        assert_eq!(s.finish(0).unwrap(), "1 installed (fish)");
     }
 
     #[tokio::test]
@@ -835,7 +851,7 @@ calls sendmail...</description></solvable>
         .await;
         assert_eq!(answers, ["2", "1", "y"]);
         assert_eq!(*asked.lock().unwrap(), ["Package conflict 1 of 3", "Package conflict 2 of 3", "Apply these changes?"]);
-        assert_eq!(s.finish(0).unwrap(), "1 removed, 2 installed");
+        assert_eq!(s.finish(0).unwrap(), "1 removed (postfix), 2 installed (sendmail, procmail)");
     }
 
     #[tokio::test]

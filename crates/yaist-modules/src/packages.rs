@@ -14,7 +14,7 @@ const PACKAGES_PARAM: Param = Param::text("packages", "Package names, space sepa
 const UPDATES: ActionSpec = ActionSpec {
     id: "packages.list_updates",
     title: "Available updates",
-    description: "List packages with updates available, from the cached repository metadata.",
+    description: "List available updates from the cached repository metadata: on Leap the needed patches (security fixes first), on rolling releases the packages with a newer version.",
     risk: Risk::Read,
     params: &[],
 };
@@ -51,6 +51,14 @@ const UPDATE: ActionSpec = ActionSpec {
     params: &[PACKAGES_PARAM],
 };
 
+const INSTALL_PATCH: ActionSpec = ActionSpec {
+    id: "packages.install_patch",
+    title: "Install",
+    description: "Install one patch (Leap): the fix for one issue, with exactly the package updates it needs (zypper install -t patch).",
+    risk: Risk::Change,
+    params: &[Param::text("patch", "Patch name, e.g. openSUSE-Leap-16.0-2026-123").check(validate::name)],
+};
+
 const REMOVE: ActionSpec = ActionSpec {
     id: "packages.remove",
     title: "Remove",
@@ -85,7 +93,7 @@ const CLEAN: ActionSpec = ActionSpec {
 
 const REFRESH: ActionSpec = ActionSpec {
     id: "packages.refresh",
-    title: "Refresh",
+    title: "Refresh repositories",
     description: "Only download fresh repository metadata (zypper refresh); installs nothing. To install updates use update_system.",
     risk: Risk::Change,
     params: &[],
@@ -131,7 +139,9 @@ pub fn register(reg: &mut Registry) {
         title: "Packages",
         tagline: "Install, remove and update",
         overview: UPDATES.id,
-        row_actions: &[UPDATE.id, INFO.id],
+        // Each table offers the ones it has the columns for: patches on Leap,
+        // packages on rolling releases.
+        row_actions: &[INSTALL_PATCH.id, INFO.id, UPDATE.id],
         overview_needs_admin: false,
     });
 
@@ -151,6 +161,18 @@ pub fn register(reg: &mut Registry) {
         let out = pkg_op(&ctx, "update", &pkgs).await?;
         Ok(Output::Done(format!("Update {}: {out}", pkgs.join(", "))))
     });
+    reg.action(INSTALL_PATCH, |ctx, args| async move {
+        let patch = args.str("patch");
+        if ctx.distro.rolling {
+            bail!("{} is a rolling release: it has no patches. Install all updates instead.", ctx.distro.pretty);
+        }
+        if ctx.distro.transactional {
+            bail!("on this system updates go into a new snapshot together: install all updates instead.");
+        }
+        let out = zypper::interactive(&ctx, &["install", "-t", "patch", "--", patch]).await?;
+        Ok(Output::Done(format!("Patch {patch}: {out}")))
+    });
+    reg.shell(INSTALL_PATCH.id, |a, _| vec![format!("sudo zypper install -t patch {}", sq(a.str("patch")))]);
     reg.action(REMOVE, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
         let out = pkg_op(&ctx, "remove", &pkgs).await?;
@@ -248,7 +270,7 @@ pub fn register(reg: &mut Registry) {
         Ok(Output::Done("Repository metadata refreshed".into()))
     });
 
-    reg.shell(UPDATES.id, |_, _| vec!["zypper list-updates".into()]);
+    reg.shell(UPDATES.id, |_, d| vec![if d.rolling { "zypper list-updates" } else { "zypper list-patches" }.into()]);
     reg.shell(SEARCH.id, |a, _| vec![format!("zypper search {}", sq(a.str("query")))]);
     reg.shell(INFO.id, |a, _| vec![format!("zypper info {}", sq(a.str("packages")))]);
     reg.shell(INSTALL.id, |a, d| pkg_cmd("install", a.str("packages"), d));
@@ -323,15 +345,107 @@ pub async fn update_counts(ctx: &Context) -> Result<UpdateCounts> {
     Ok(UpdateCounts { packages, security, reboot: zypper::reboot_needed(ctx).await })
 }
 
-async fn updates(ctx: &Context) -> Result<Output> {
+/// One package with a newer version waiting.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingUpdate {
+    pub name: String,
+    pub installed: String,
+    pub available: String,
+    pub repo: String,
+}
+
+impl PendingUpdate {
+    /// Updating it only takes full effect after a reboot: the kernel,
+    /// firmware and what everything else runs on. A short list on purpose;
+    /// zypper's own reboot hint comes after the update, from the packages.
+    pub fn needs_reboot(&self) -> bool {
+        let n = self.name.as_str();
+        let kernel = n.starts_with("kernel-")
+            && !["-devel", "-source", "-docs", "-macros", "-syms"].iter().any(|s| n.ends_with(s) || n.contains(&format!("{s}-")));
+        kernel || n.starts_with("ucode-") || matches!(n, "glibc" | "systemd" | "udev" | "dbus-1" | "dbus-broker" | "dracut")
+    }
+}
+
+/// What updating the whole system is about to change, for the plan card
+/// before the user confirms.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UpdatePreview {
+    /// Packages with a newer version, reboot-needing ones first.
+    pub packages: Vec<PendingUpdate>,
+    /// The update runs `zypper dup`: it can also install, remove or switch
+    /// packages, which zypper's list of updates doesn't show (and a dry run
+    /// would need root). zypper asks before removing anything.
+    pub dup: bool,
+}
+
+impl UpdatePreview {
+    pub fn reboot(&self) -> bool {
+        self.packages.iter().any(PendingUpdate::needs_reboot)
+    }
+}
+
+/// What the system update would bring, from the cached metadata (no root).
+pub async fn update_preview(ctx: &Context) -> Result<UpdatePreview> {
+    let d = &ctx.distro;
+    let dup = d.rolling || crate::upgrade::prerelease_phase(d).await.is_some();
     let xml = zypper::query(ctx, &["list-updates"]).await?;
-    let doc = zypper::parse(&xml)?;
+    let mut packages = pending_updates(&xml)?;
+    packages.sort_by_key(|p| !p.needs_reboot());
+    Ok(UpdatePreview { packages, dup })
+}
+
+/// The packages in `zypper --xmlout list-updates`.
+fn pending_updates(xml: &str) -> Result<Vec<PendingUpdate>> {
+    let doc = zypper::parse(xml)?;
+    Ok(doc
+        .descendants()
+        .filter(|n| n.has_tag_name("update") && n.attribute("kind").is_none_or(|k| k == "package"))
+        .map(|u| {
+            let attr = |k| u.attribute(k).unwrap_or("").to_owned();
+            let repo = u.children().find(|c| c.has_tag_name("source")).and_then(|s| s.attribute("alias")).unwrap_or("");
+            PendingUpdate { name: attr("name"), installed: attr("edition-old"), available: attr("edition"), repo: repo.to_owned() }
+        })
+        .collect())
+}
+
+/// The needed patches in `zypper --xmlout list-patches`, security fixes
+/// first, then by severity.
+fn needed_patches(xml: &str) -> Result<Table> {
+    let doc = zypper::parse(xml)?;
+    let mut rows: Vec<Vec<String>> = doc
+        .descendants()
+        .filter(|n| n.has_tag_name("update") && n.attribute("kind") == Some("patch") && n.attribute("status") == Some("needed"))
+        .map(|u| {
+            let attr = |k| u.attribute(k).unwrap_or("").to_owned();
+            let summary = u.children().find(|c| c.has_tag_name("summary")).and_then(|s| s.text()).unwrap_or("").trim().to_owned();
+            vec![summary, attr("category"), attr("severity"), attr("name")]
+        })
+        .collect();
+    let rank = |r: &Vec<String>| {
+        let category = if r[1] == "security" { 0 } else { 1 };
+        let severity = ["critical", "important", "moderate", "low"].iter().position(|s| *s == r[2]).unwrap_or(4);
+        (category, severity)
+    };
+    rows.sort_by_key(rank);
+    let mut t = Table::new(&[("summary", "Patch"), ("category", "Category"), ("severity", "Severity"), ("patch", "Name")])
+        .essential(&["summary", "category"]);
+    t.rows = rows;
+    Ok(t)
+}
+
+async fn updates(ctx: &Context) -> Result<Output> {
+    // Leap's updates come as patches, one per fixed issue: what to pick
+    // from. Rolling releases have none; there the packages say what the
+    // update brings.
+    if !ctx.distro.rolling {
+        let xml = zypper::query(ctx, &["list-patches"]).await?;
+        return Ok(Output::Table(needed_patches(&xml)?));
+    }
+    let xml = zypper::query(ctx, &["list-updates"]).await?;
     let mut t = Table::new(&[("packages", "Package"), ("current", "Installed"), ("new", "Available"), ("repo", "Repository")])
         .essential(&["packages", "new"]);
-    for u in doc.descendants().filter(|n| n.has_tag_name("update")) {
-        let repo = u.children().find(|c| c.has_tag_name("source")).and_then(|s| s.attribute("alias")).unwrap_or("");
-        let attr = |k| u.attribute(k).unwrap_or("").to_owned();
-        t.push(vec![attr("name"), attr("edition-old"), attr("edition"), repo.to_owned()]);
+    for u in pending_updates(&xml)? {
+        t.push(vec![u.name, u.installed, u.available, u.repo]);
     }
     Ok(Output::Table(t))
 }
@@ -486,6 +600,53 @@ async fn info(ctx: &Context, package: &str) -> Result<Output> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shape of `zypper --xmlout list-updates` on Leap.
+    const LIST_UPDATES: &str = "<?xml version='1.0'?>
+<stream>
+<message type=\"info\">Loading repository data...</message>
+<update-status version=\"0.6\">
+<update-list>
+<update kind=\"package\" name=\"vim\" edition=\"9.1.2-1.1\" arch=\"x86_64\" edition-old=\"9.1.1-1.1\"><summary>Vi IMproved</summary><source url=\"http://cdn.opensuse.org/x\" alias=\"repo-oss\"/></update>
+<update kind=\"package\" name=\"kernel-default\" edition=\"6.12.0-9.1\" arch=\"x86_64\" edition-old=\"6.12.0-8.1\"><summary>The Standard Kernel</summary><source url=\"http://cdn.opensuse.org/x\" alias=\"repo-oss\"/></update>
+<update kind=\"package\" name=\"kernel-default-devel\" edition=\"6.12.0-9.1\" arch=\"x86_64\" edition-old=\"6.12.0-8.1\"><summary>Development files</summary><source url=\"http://cdn.opensuse.org/x\" alias=\"repo-oss\"/></update>
+</update-list>
+</update-status>
+</stream>";
+
+    /// The shape of `zypper --xmlout list-patches` on Leap.
+    const LIST_PATCHES: &str = "<?xml version='1.0'?>
+<stream>
+<update-status version=\"0.6\">
+<update-list>
+<update kind=\"patch\" name=\"openSUSE-Leap-16.0-2026-41\" edition=\"1\" arch=\"noarch\" status=\"needed\" category=\"recommended\" severity=\"moderate\"><summary>Recommended update for crypto-policies</summary></update>
+<update kind=\"patch\" name=\"openSUSE-Leap-16.0-2026-12\" edition=\"1\" arch=\"noarch\" status=\"applied\" category=\"security\" severity=\"important\"><summary>Security update for curl</summary></update>
+<update kind=\"patch\" name=\"openSUSE-Leap-16.0-2026-57\" edition=\"1\" arch=\"noarch\" status=\"needed\" category=\"security\" severity=\"low\"><summary>Security update for vim</summary></update>
+<update kind=\"patch\" name=\"openSUSE-Leap-16.0-2026-60\" edition=\"1\" arch=\"noarch\" status=\"needed\" category=\"security\" severity=\"important\"><summary>Security update for the Linux Kernel</summary></update>
+</update-list>
+</update-status>
+</stream>";
+
+    #[test]
+    fn needed_patches_security_first() {
+        let t = needed_patches(LIST_PATCHES).unwrap();
+        let names: Vec<&str> = t.rows.iter().map(|r| t.cell(r, "patch").unwrap()).collect();
+        assert_eq!(names, ["openSUSE-Leap-16.0-2026-60", "openSUSE-Leap-16.0-2026-57", "openSUSE-Leap-16.0-2026-41"]);
+        assert_eq!(t.cell(&t.rows[0], "summary"), Some("Security update for the Linux Kernel"));
+    }
+
+    #[test]
+    fn pending_updates_and_which_need_a_reboot() {
+        let u = pending_updates(LIST_UPDATES).unwrap();
+        let names: Vec<&str> = u.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["vim", "kernel-default", "kernel-default-devel"]);
+        assert_eq!((u[1].installed.as_str(), u[1].available.as_str(), u[1].repo.as_str()), ("6.12.0-8.1", "6.12.0-9.1", "repo-oss"));
+        let reboot: Vec<bool> = u.iter().map(PendingUpdate::needs_reboot).collect();
+        assert_eq!(reboot, [false, true, false]);
+        let p = |n: &str| PendingUpdate { name: n.into(), installed: String::new(), available: String::new(), repo: String::new() };
+        assert!(p("glibc").needs_reboot() && p("ucode-intel").needs_reboot() && p("kernel-firmware-intel").needs_reboot());
+        assert!(!p("glibc-locale").needs_reboot() && !p("kernel-macros").needs_reboot());
+    }
 
     /// Recorded from `zypper --xmlout search --match-exact -t package -t pattern -- hyprland gnome fish`
     /// on Tumbleweed.

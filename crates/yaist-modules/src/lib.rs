@@ -21,7 +21,7 @@ mod upgrade;
 mod users;
 mod zypper;
 
-pub use packages::{update_counts, UpdateCounts};
+pub use packages::{update_counts, update_preview, PendingUpdate, UpdateCounts, UpdatePreview};
 use yaist_core::{ModuleSpec, Registry};
 
 /// All modules, in sidebar order.

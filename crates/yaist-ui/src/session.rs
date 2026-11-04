@@ -12,7 +12,7 @@ use yaist_core::ask::{self, Question};
 use yaist_core::log;
 use yaist_core::{command, ActionSpec, Context, Registry, Risk};
 
-use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, State, UpdateStatus, LOG_LINES};
+use crate::state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, Preview, State, UpdateStatus, LOG_LINES};
 use crate::text_size::{self, Change};
 
 /// Where the output of changes is kept, under $XDG_STATE_HOME (or
@@ -167,6 +167,27 @@ impl Shared {
             };
             sh.update(|s| s.updates = status);
             sh.update_check.store(false, std::sync::atomic::Ordering::SeqCst);
+        });
+    }
+
+    /// Lists what the system update on plan `id` would bring, onto its card:
+    /// a read of the cached metadata as the user, no password.
+    fn preview_update(&self, id: u64) {
+        let set = move |sh: &Shared, preview: Preview| {
+            sh.update(|s| {
+                if let Some(p) = s.plan_mut(id) {
+                    p.preview = preview;
+                }
+            })
+        };
+        set(self, Preview::Checking);
+        let sh = self.clone();
+        tokio::spawn(async move {
+            let preview = match yaist_modules::update_preview(&sh.ctx).await {
+                Ok(u) => Preview::Updates(Arc::new(u)),
+                Err(e) => Preview::Failed(format!("{e:#}")),
+            };
+            set(&sh, preview);
         });
     }
 
@@ -648,8 +669,12 @@ impl Jobs {
             log_file: None,
             status: PlanStatus::Pending,
             from_agent,
+            preview: Preview::None,
         }));
         self.sh.focus_module(spec.module());
+        if spec.id == crate::UPDATE_ACTION {
+            self.sh.preview_update(id);
+        }
     }
 
     /// The same change once more, as a new card to confirm. The arguments are

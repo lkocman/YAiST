@@ -9,11 +9,11 @@ use std::sync::Arc;
 use serde_json::{Map, Value};
 use yaist_core::{command, Distro, Registry};
 
-use crate::state::{Entry, Plan, PlanStatus};
+use crate::state::{Entry, Plan, PlanStatus, Preview};
 use yaist_modules::release_notes::{NoteEntry, Notes};
 
 /// The scenes, for `/demo` without one and the error message on a typo.
-pub const SCENES: &[&str] = &["report-distro", "report-yaist", "upgrade-incomplete", "upgrade-running", "whats-new"];
+pub const SCENES: &[&str] = &["report-distro", "report-yaist", "update-done", "update-preview", "upgrade-incomplete", "upgrade-running", "whats-new"];
 
 /// The entries of scene `name`, or None for an unknown one. Its plans are
 /// numbered from `first_id`.
@@ -33,6 +33,7 @@ pub fn scene(name: &str, reg: &Registry, d: &Distro, first_id: u64) -> Option<Ve
             log_file: Some(format!("~/.local/state/yaist/logs/20261027-101512-{action}.log")),
             status,
             from_agent: false,
+            preview: Default::default(),
         })
     };
     let plan = |id, action: &str, raw: &[(&str, &str)], executed: &[&str], log: &[&str], error: &str| {
@@ -75,6 +76,26 @@ pub fn scene(name: &str, reg: &Registry, d: &Distro, first_id: u64) -> Option<Ve
                 "could not read zypper's output: unexpected end of stream at 41:7",
             ),
         ],
+        // The system update before it is confirmed: what it will bring.
+        "update-preview" => {
+            let mut e = card(0, "packages.update_system", &[], &[], &[], PlanStatus::Pending);
+            if let Entry::Plan(p) = &mut e {
+                p.preview = Preview::Updates(Arc::new(sample_updates(d.rolling)));
+            }
+            vec![Entry::Command("/packages update-system".into()), e]
+        }
+        // ...and once done: what it changed.
+        "update-done" => vec![
+            Entry::Command("/packages update-system".into()),
+            card(
+                0,
+                "packages.update_system",
+                &[],
+                &[&zypper("update --download-in-advance")],
+                &["(1/3) Installing: kernel-default-6.12.0-160100.9.1.x86_64 ...[done]"],
+                PlanStatus::Done("System updated (update): 3 upgraded (kernel-default, glibc, vim).".into()),
+            ),
+        ],
         // An upgrade that stopped part-way: continue it or roll back.
         "upgrade-incomplete" => vec![
             Entry::User("upgrade to Leap 16.1".into()),
@@ -112,6 +133,26 @@ pub fn scene(name: &str, reg: &Registry, d: &Distro, first_id: u64) -> Option<Ve
         ],
         _ => return None,
     })
+}
+
+/// A Leap system with a kernel update among a few others.
+fn sample_updates(dup: bool) -> yaist_modules::UpdatePreview {
+    let u = |name: &str, installed: &str, available: &str| yaist_modules::PendingUpdate {
+        name: name.into(),
+        installed: installed.into(),
+        available: available.into(),
+        repo: "repo-oss".into(),
+    };
+    yaist_modules::UpdatePreview {
+        packages: vec![
+            u("kernel-default", "6.12.0-160100.8.1", "6.12.0-160100.9.1"),
+            u("glibc", "2.40-160100.3.2", "2.40-160100.4.1"),
+            u("vim", "9.1.1650-160100.1.3", "9.1.1752-160100.1.1"),
+            u("vim-data-common", "9.1.1650-160100.1.3", "9.1.1752-160100.1.1"),
+            u("libxml2-2", "2.13.8-160100.2.1", "2.13.8-160100.3.1"),
+        ],
+        dup,
+    }
 }
 
 const UPGRADE_LOG: &[&str] = &[
