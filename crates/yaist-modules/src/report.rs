@@ -58,7 +58,7 @@ pub fn register(reg: &mut Registry) {
             let (product, ..) = bugzilla_product(d);
             link(&format!("{BUGZILLA}/enter_bug.cgi"), &[("product", &product)]).to_string()
         } else {
-            format!("{ISSUES}/new")
+            format!("{ISSUES}/new?template=bug_report.yml")
         };
         vec!["# check for an existing report first, then:".into(), format!("xdg-open '{page}'")]
     });
@@ -80,17 +80,29 @@ struct Report {
     environment: Vec<String>,
 }
 
+/// Where a report made with YAiST says it comes from.
+const PREPARED: &str = "Prepared with YAiST's report assistant, reviewed and submitted by the reporter.";
+
 impl Report {
-    fn body(&self, observation: &str) -> String {
-        let reproducible = match self.reproducible.as_str() {
+    /// "Every time." and so on; empty when not known.
+    fn reproducible_text(&self) -> &'static str {
+        match self.reproducible.as_str() {
             "always" => "Every time.",
             "sometimes" => "Sometimes.",
             "once" => "Happened once so far.",
-            _ => "(please fill in: does it happen again?)",
+            _ => "",
+        }
+    }
+
+    /// The Bugzilla comment, with the same sections as the GitHub form.
+    fn body(&self, observation: &str) -> String {
+        let reproducible = match self.reproducible_text() {
+            "" => "(please fill in: does it happen again?)",
+            r => r,
         };
         let expected = if self.expected.is_empty() { "(please fill in: what should have happened?)" } else { &self.expected };
         format!(
-            "## Observation\n\n{observation}\n\n## Reproducible\n\n{reproducible}\n\n## Expected result\n\n{expected}\n\n## Environment\n\n{}\n\n---\nPrepared with YAiST's report assistant, reviewed and submitted by the reporter.\n",
+            "## Observation\n\n{observation}\n\n## Reproducible\n\n{reproducible}\n\n## Expected result\n\n{expected}\n\n## Environment\n\n{}\n\n---\n{PREPARED}\n",
             self.environment.join("\n")
         )
     }
@@ -112,10 +124,26 @@ impl Report {
     }
 
     fn url_with(&self, d: &Distro, observation: &str) -> Url {
-        let body = self.body(observation);
         match self.target {
-            Target::Yaist => link(&format!("{ISSUES}/new"), &[("title", &self.title), ("body", &body)]),
+            // The bug report form (.github/ISSUE_TEMPLATE/bug_report.yml),
+            // its fields filled in by id. What isn't known stays empty: the
+            // form asks for it, and for the screenshot.
+            Target::Yaist => {
+                let environment = format!("{}\n\n{PREPARED}", self.environment.join("\n"));
+                link(
+                    &format!("{ISSUES}/new"),
+                    &[
+                        ("template", "bug_report.yml"),
+                        ("title", &self.title),
+                        ("observation", observation),
+                        ("expected", &self.expected),
+                        ("reproducible", self.reproducible_text()),
+                        ("environment", &environment),
+                    ],
+                )
+            }
             Target::OpenSuse => {
+                let body = self.body(observation);
                 let (product, version, component) = bugzilla_product(d);
                 // The prefix tells triage where the report comes from.
                 let title = format!("[YAiST] {}", self.title);
@@ -295,7 +323,14 @@ mod tests {
         let d = distro("opensuse-leap", "16.0", "");
         let url = r.url(&d);
         assert!(url.as_str().starts_with("https://github.com/lkocman/YAiST/issues/new?"));
+        assert_eq!(param(&url, "template").as_deref(), Some("bug_report.yml"));
         assert_eq!(param(&url, "title").as_deref(), Some("Update fails: %post of foo"));
+        assert_eq!(param(&url, "observation").as_deref(), Some("YAiST could not read zypper's output"));
+        assert_eq!(param(&url, "expected").as_deref(), Some("The update installs"));
+        assert_eq!(param(&url, "reproducible").as_deref(), Some("Every time."));
+        let env = param(&url, "environment").unwrap();
+        assert!(env.starts_with("- System: openSUSE Leap 16.1 (RC), x86_64, standard mode\n- YAiST: 0.1.0\n\n"), "{env}");
+        assert_eq!(param(&url, "body"), None);
     }
 
     #[test]
@@ -311,7 +346,7 @@ mod tests {
         let log = (0..2000).map(|i| format!("line {i}: something happened")).collect::<Vec<_>>().join("\n");
         let url = report(Target::Yaist, &log).url(&distro("opensuse-leap", "16.0", ""));
         assert!(url.as_str().len() <= MAX_URL, "{}", url.as_str().len());
-        let body = param(&url, "body").unwrap();
+        let body = param(&url, "observation").unwrap();
         assert!(body.contains("line 0:") && body.contains("line 1999:") && body.contains("shortened to fit the link"));
     }
 

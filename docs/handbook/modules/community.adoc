@@ -83,7 +83,7 @@ Prepare a bug report: a YAiST issue on GitHub (target yaist) when YAiST got some
 [source,shell]
 ----
 # check for an existing report first, then:
-xdg-open 'https://github.com/lkocman/YAiST/issues/new'
+xdg-open 'https://github.com/lkocman/YAiST/issues/new?template=bug_report.yml'
 ----
 ****
 // END GENERATED

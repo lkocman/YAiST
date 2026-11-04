@@ -1,0 +1,49 @@
+name: PR checks
+
+# What a pull request says about itself: a change to what users see comes
+# with a screenshot. The no-screenshot label skips it (a refactor that
+# changes nothing visible).
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  screenshot:
+    name: Screenshot for UI changes
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-screenshot') }}
+    steps:
+      - name: Look for an image when the clients change
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          # Through the environment: the description is the author's text.
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          ui=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename' \
+            | grep -E '^(apps/yaist-gui/|apps/yaist/src/tui\.rs$|assets/)' || true)
+          if [ -z "$ui" ]; then
+            echo "No client changes, no screenshot needed."
+            exit 0
+          fi
+          echo "Changes to what users see:"
+          echo "$ui" | sed 's/^/  /'
+          # The template's comments don't count.
+          text=$(printf '%s' "$BODY" | perl -0pe 's/<!--.*?-->//gs')
+          if printf '%s' "$text" | grep -qE '!\[[^]]*\]\([^)]+\)|<img[[:space:]]|github\.com/user-attachments/assets/'; then
+            echo "Screenshot found."
+            exit 0
+          fi
+          echo "::error::This pull request changes the desktop or terminal client: add a screenshot (before and after) to its description, under Screenshots. If nothing visible changed, add the no-screenshot label."
+          exit 1
