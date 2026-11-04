@@ -60,6 +60,8 @@ In the planned design all of this moves into a privileged `yaistd` daemon.
 | `YAIST_TOTAL_MEM_KIB` | pretend to have this much memory, to see the below-minimum notice (e.g. `3500000`) |
 | `YAIST_OS_RELEASE` | pretend to be another flavour, e.g. `tests/os-release/leap-16.1-immutable` (development; check plans only) |
 | `YAIST_MODEL` (llm-server.sh) | `unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M` |
+| `YAIST_MODEL_FILE` (llm-server.sh) | unset; a local GGUF to serve instead of `YAIST_MODEL` (yaist-offline's `yaist-llm.service` uses it) |
+| `YAIST_LLM_ALIAS` (llm-server.sh) | `YAIST_MODEL`, or the file name: the model name the server reports |
 | `YAIST_LLM_PORT` (llm-server.sh) | `8080` |
 | `YAIST_LLM_IMAGE` (llm-server.sh) | `ghcr.io/ggml-org/llama.cpp:server-vulkan` |
 | `YAIST_LLM_DEVICE` (llm-server.sh) | `auto`: the discrete GPU if usable (NVIDIA with its driver, AMD with own memory), else CPU mode, marked `@cpu` in the model alias; `gpu` or `cpu` forces one |
