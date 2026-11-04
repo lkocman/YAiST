@@ -103,7 +103,13 @@ fn avx2() -> Option<bool> {
 /// AMD card with memory of its own (an APU reports only a small carve-out).
 /// Without one the launcher runs in CPU mode. Keep in step with
 /// `usable_discrete_gpu` in scripts/llm-server.sh.
+///
+/// Respects `YAIST_LLM_DEVICE`: `YAIST_LLM_DEVICE=cpu` forces CPU mode even
+/// when a usable discrete GPU is present.
 fn usable_discrete_gpu() -> Option<Vendor> {
+    if std::env::var("YAIST_LLM_DEVICE").is_ok_and(|v| v.eq_ignore_ascii_case("cpu")) {
+        return None;
+    }
     let dir = std::fs::read_dir("/sys/class/drm").ok()?;
     for e in dir.flatten() {
         let name = e.file_name().to_string_lossy().into_owned();
@@ -223,10 +229,10 @@ async fn status(ctx: &Context) -> Result<Output> {
         short.unwrap_or_else(|| "At least 8 GB of memory and 4 processor threads (AVX2 on x86-64)".into()),
     ]);
     let (mode, detail) = match usable_discrete_gpu() {
-        Some(_) => ("gpu", "The assistant runs on the discrete GPU"),
+        Some(_) => ("gpu", "Discrete GPU available for hardware acceleration"),
         None => (
             "cpu",
-            "No usable discrete GPU: the assistant runs on the processor, more slowly (the first reply can take up to half a minute). On NVIDIA cards, Set up installs the driver that makes the GPU usable",
+            "No usable discrete GPU (or YAIST_LLM_DEVICE=cpu): the assistant runs on the processor, more slowly (the first reply can take up to half a minute). On NVIDIA cards, Set up installs the driver that makes the GPU usable",
         ),
     };
     t.push(vec!["mode".into(), mode.into(), detail.into()]);
@@ -306,6 +312,13 @@ mod tests {
     use super::*;
 
     const GIB: u64 = 1024 * 1024;
+
+    #[test]
+    fn usable_gpu_respects_env_override() {
+        std::env::set_var("YAIST_LLM_DEVICE", "cpu");
+        assert_eq!(usable_discrete_gpu(), None);
+        std::env::remove_var("YAIST_LLM_DEVICE");
+    }
 
     #[test]
     fn minimum() {
