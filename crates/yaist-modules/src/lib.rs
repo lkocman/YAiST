@@ -21,6 +21,7 @@ mod upgrade;
 mod users;
 mod zypper;
 
+pub use assistant::below_minimum;
 pub use packages::{update_counts, update_preview, PendingUpdate, UpdateCounts, UpdatePreview};
 use yaist_core::{ModuleSpec, Registry};
 

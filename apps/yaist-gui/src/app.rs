@@ -7,7 +7,7 @@ use yaist_ui::release_notes;
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{
     reboot_notice, row_action_is_direct, row_actions_for, row_args, tone_of, update_summary, Asked, Cmd, Entry, Form, LlmStatus, ModuleView, Panel,
-    Plan, PlanStatus, Preview, Session, UpdateLevel, UpdateStatus, UPDATE_ACTION,
+    Plan, PlanStatus, Preview, Session, UpdateLevel, UpdateStatus, CPU_MODE_BADGE, CPU_MODE_TIP, UPDATE_ACTION,
 };
 
 use crate::theme::{self, Tokens};
@@ -340,10 +340,20 @@ impl App {
                 }
                 ui.add_space(16.0);
                 match &v.llm {
-                    LlmStatus::Ready(name) => widgets::badge(ui, &format!("model · {name}"), t.good),
-                    LlmStatus::Checking => widgets::badge(ui, "model · checking", t.muted),
-                    LlmStatus::Offline => widgets::badge(ui, "model · offline", t.warn),
-                };
+                    LlmStatus::Ready { name, cpu } => {
+                        widgets::badge(ui, &format!("model · {name}"), t.good);
+                        if *cpu {
+                            ui.add_space(6.0);
+                            widgets::badge(ui, CPU_MODE_BADGE, t.warn).on_hover_text(CPU_MODE_TIP);
+                        }
+                    }
+                    LlmStatus::Checking => {
+                        widgets::badge(ui, "model · checking", t.muted);
+                    }
+                    LlmStatus::Offline => {
+                        widgets::badge(ui, "model · offline", t.warn);
+                    }
+                }
                 if ui.available_width() > 100.0 {
                     ui.add_space(10.0);
                     widgets::hud(ui, "local ai", t.faint);

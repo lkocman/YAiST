@@ -5,7 +5,7 @@
 
 mod llm;
 
-pub use llm::{LlmClient, LlmConfig, Reply, ToolCall};
+pub use llm::{LlmClient, LlmConfig, ModelInfo, Reply, ToolCall};
 
 use anyhow::Result;
 use serde_json::{json, Value};

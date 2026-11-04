@@ -48,17 +48,37 @@ impl LlmClient {
         Self { http, config }
     }
 
-    /// The name of the loaded model; doubles as a health check.
-    pub async fn model_name(&self) -> Result<String> {
+    /// The loaded model; doubles as a health check.
+    pub async fn model_info(&self) -> Result<ModelInfo> {
         let v: Value =
             self.http.get(format!("{}/v1/models", self.config.url)).timeout(Duration::from_secs(3)).send().await?.error_for_status()?.json().await?;
-        let id = v["data"][0]["id"].as_str().unwrap_or("unknown model");
+        Ok(ModelInfo::from_id(v["data"][0]["id"].as_str().unwrap_or("unknown model")))
+    }
+}
+
+/// What the model server reports about the model.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModelInfo {
+    pub name: String,
+    /// Running on the processor because there is no usable discrete GPU:
+    /// the launcher marks the alias with "@cpu" (scripts/llm-server.sh).
+    pub cpu: bool,
+}
+
+impl ModelInfo {
+    fn from_id(id: &str) -> Self {
+        let (id, cpu) = match id.strip_suffix("@cpu") {
+            Some(rest) => (rest, true),
+            None => (id, false),
+        };
         // "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M" -> "Qwen3-4B-Instruct-2507"
         let name = id.rsplit('/').next().unwrap_or(id);
         let name = name.split(':').next().unwrap_or(name);
-        Ok(name.trim_end_matches(".gguf").trim_end_matches("-GGUF").to_owned())
+        Self { name: name.trim_end_matches(".gguf").trim_end_matches("-GGUF").to_owned(), cpu }
     }
+}
 
+impl LlmClient {
     pub async fn chat(&self, messages: &[Value], tools: &[Value]) -> Result<Reply> {
         self.chat_limited(messages, tools, 600).await
     }
@@ -116,5 +136,21 @@ impl LlmClient {
             })
             .unwrap_or_default();
         Ok(Reply { content, tool_calls, message })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ModelInfo;
+
+    #[test]
+    fn model_names() {
+        assert_eq!(ModelInfo::from_id("unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M"), ModelInfo { name: "Qwen3-4B-Instruct-2507".into(), cpu: false });
+        assert_eq!(
+            ModelInfo::from_id("unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M@cpu"),
+            ModelInfo { name: "Qwen3-4B-Instruct-2507".into(), cpu: true }
+        );
+        assert_eq!(ModelInfo::from_id("qwen3-4b-instruct-2507@cpu"), ModelInfo { name: "qwen3-4b-instruct-2507".into(), cpu: true });
+        assert_eq!(ModelInfo::from_id("/m/Qwen3-0.6B-Q8_0.gguf"), ModelInfo { name: "Qwen3-0.6B-Q8_0".into(), cpu: false });
     }
 }

@@ -310,6 +310,12 @@ impl Session {
             conversation
                 .push(Entry::Error(format!("This doesn't look like openSUSE ({}); package and repository modules may not work.", ctx.distro.id)));
         }
+        // Only for a model on this computer; a server elsewhere has its own hardware.
+        if is_local(&llm.config.url) {
+            if let Some(why) = yaist_modules::below_minimum() {
+                conversation.push(Entry::Notice(why));
+            }
+        }
         let state = Arc::new(Mutex::new(State {
             distro: ctx.distro.clone(),
             modules,
@@ -402,14 +408,24 @@ impl Session {
     }
 }
 
+/// Whether the model server runs on this computer.
+fn is_local(url: &str) -> bool {
+    let authority = url.split_once("://").map_or(url, |(_, rest)| rest).split('/').next().unwrap_or("");
+    let host = match authority.strip_prefix('[') {
+        Some(v6) => v6.split(']').next().unwrap_or(""),
+        None => authority.split(':').next().unwrap_or(""),
+    };
+    matches!(host, "127.0.0.1" | "localhost" | "::1")
+}
+
 async fn watch_llm(sh: Shared, llm: LlmClient, warm: impl std::future::Future<Output = anyhow::Result<()>> + Send + 'static) {
     let mut warm = Some(warm);
     loop {
-        let status = match llm.model_name().await {
-            Ok(name) => LlmStatus::Ready(name),
+        let status = match llm.model_info().await {
+            Ok(m) => LlmStatus::Ready { name: m.name, cpu: m.cpu },
             Err(_) => LlmStatus::Offline,
         };
-        let ready = matches!(status, LlmStatus::Ready(_));
+        let ready = matches!(status, LlmStatus::Ready { .. });
         let changed = sh.state.lock().map(|s| s.llm != status).unwrap_or(true);
         if ready {
             if let Some(w) = warm.take() {
@@ -855,6 +871,15 @@ impl Jobs {
 mod tests {
     use super::*;
     use yaist_core::Output;
+
+    #[test]
+    fn local_model_servers() {
+        assert!(is_local("http://127.0.0.1:8080"));
+        assert!(is_local("http://localhost:8081/"));
+        assert!(is_local("http://[::1]:8080"));
+        assert!(!is_local("http://192.168.1.20:8080"));
+        assert!(!is_local("https://models.example.org/v1"));
+    }
 
     const SLOW: ActionSpec = ActionSpec { id: "test.slow", title: "Slow change", description: "", risk: Risk::Change, params: &[] };
     const READ: ActionSpec = ActionSpec { id: "test.read", title: "Quick read", description: "", risk: Risk::Read, params: &[] };

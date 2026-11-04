@@ -557,11 +557,14 @@ impl App {
 
     fn draw_header(&self, f: &mut Frame, area: Rect, s: &State) {
         let t = &self.t;
-        let llm = match &s.llm {
-            LlmStatus::Ready(name) => self.badge(&format!("model · {name}"), t.good),
+        let mut llm = vec![match &s.llm {
+            LlmStatus::Ready { name, .. } => self.badge(&format!("model · {name}"), t.good),
             LlmStatus::Checking => self.badge("model · checking", t.muted),
             LlmStatus::Offline => self.badge("model · offline", t.warn),
-        };
+        }];
+        if matches!(s.llm, LlmStatus::Ready { cpu: true, .. }) {
+            llm.extend([Span::raw(" "), self.badge(yaist_ui::CPU_MODE_BADGE, t.warn)]);
+        }
         let mut left = vec![Span::raw(" ")];
         left.extend(self.wordmark());
         let left = Line::from(
@@ -579,7 +582,8 @@ impl App {
             ]
             .concat(),
         );
-        let right = Line::from(vec![llm, Span::raw(" ")]).right_aligned();
+        llm.push(Span::raw(" "));
+        let right = Line::from(llm).right_aligned();
         let block = Block::new().borders(Borders::BOTTOM).border_style(self.style(t.line)).style(self.style(t.ink));
         let inner = block.inner(area);
         f.render_widget(block, area);

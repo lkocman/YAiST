@@ -134,7 +134,12 @@ impl UpdateStatus {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LlmStatus {
     Checking,
-    Ready(String),
+    /// `cpu`: no usable discrete GPU, so the model runs on the processor,
+    /// more slowly. The UI says so next to the model name.
+    Ready {
+        name: String,
+        cpu: bool,
+    },
     Offline,
 }
 
