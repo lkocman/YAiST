@@ -12,9 +12,17 @@
 #                                                prompt and tools on small GPUs)
 #   YAIST_LLM_IMAGE  container image            (default: llama.cpp Vulkan build)
 #   YAIST_LLM_PODMAN set to 1 to use the container even when llama-server is installed
+#   YAIST_LLM_DEVICE auto, gpu or cpu           (default: auto)
 #
 # GPU layers are not set: llama-server's --fit (on by default) offloads as
 # many as fit in the GPU's memory and keeps the rest on the CPU.
+#
+# CPU mode: without a usable discrete GPU (NVIDIA with its driver loaded, or
+# an AMD card with its own memory) the model runs on the processor. llama.cpp
+# would otherwise pick the integrated GPU, which is slower than the CPU on
+# most laptops and sometimes fails. The alias gets "@cpu" so YAiST can show
+# that it runs in CPU mode. YAIST_LLM_DEVICE=gpu overrides this, for example
+# on strong integrated GPUs. Keep in step with crates/yaist-modules/src/assistant.rs.
 set -euo pipefail
 
 MODEL="${YAIST_MODEL:-unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M}"
@@ -27,6 +35,27 @@ mkdir -p "$CACHE"
 
 server_args=(-hf "$MODEL" --jinja -c "$CTX" --cache-reuse 256)
 
+# The vendor of a discrete GPU llama.cpp can use: "nvidia" or "amd", or nothing.
+usable_discrete_gpu() {
+    local card dev driver vram
+    for card in /sys/class/drm/card[0-9]*; do
+        [[ $card == *-* ]] && continue
+        dev=$card/device
+        [ -e "$dev/vendor" ] || continue
+        driver=$(basename "$(readlink -f "$dev/driver")")
+        case $(<"$dev/vendor") in
+        0x10de)
+            # nouveau has no usable Vulkan on most cards
+            [ "$driver" = nvidia ] && { echo nvidia; return; } ;;
+        0x1002)
+            # An APU reports only its small carve-out as VRAM.
+            vram=$(cat "$dev/mem_info_vram_total" 2>/dev/null || echo 0)
+            [ "$driver" = amdgpu ] && [ "$vram" -ge $((4 << 30)) ] && { echo amd; return; } ;;
+        esac
+    done
+    return 0
+}
+
 gpu_count() {
     local n=0 card
     for card in /sys/class/drm/card[0-9]*; do
@@ -36,9 +65,22 @@ gpu_count() {
     echo "$n"
 }
 
+dgpu=$(usable_discrete_gpu)
+case "${YAIST_LLM_DEVICE:-auto}" in
+cpu) cpu=1 ;;
+gpu) cpu=0 ;;
+*) [ -n "$dgpu" ] && cpu=0 || cpu=1 ;;
+esac
+cpu_mode() {
+    echo "llm-server: no usable discrete GPU, running the model on the CPU (slower; YAIST_LLM_DEVICE=gpu overrides)." >&2
+    server_args+=(--device none --alias "$MODEL@cpu")
+}
+
 if [ "${YAIST_LLM_PODMAN:-0}" != 1 ] && command -v llama-server >/dev/null; then
     launch=()
-    if [ "$(gpu_count)" -ge 2 ]; then
+    if [ "$cpu" = 1 ]; then
+        cpu_mode
+    elif [ "$(gpu_count)" -ge 2 ]; then
         # switcherooctl puts the default (integrated) GPU first, so -g 1 is
         # the discrete one. When its service isn't running it starts the
         # command without a word on the default GPU, so check first.
@@ -58,8 +100,14 @@ if [ "${YAIST_LLM_PODMAN:-0}" != 1 ] && command -v llama-server >/dev/null; then
     exec "${launch[@]}" llama-server "${server_args[@]}" --host 127.0.0.1 --port "$PORT"
 fi
 
+# The container only sees Mesa GPUs, so NVIDIA's driver doesn't count here.
 gpu=()
-if [ -e /dev/dri ]; then
+if [ "${YAIST_LLM_DEVICE:-auto}" = auto ] && [ "$dgpu" != amd ]; then
+    cpu=1
+fi
+if [ "$cpu" = 1 ]; then
+    cpu_mode
+elif [ -e /dev/dri ]; then
     gpu=(--device /dev/dri)
 fi
 

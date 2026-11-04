@@ -14,6 +14,6 @@ mod registry;
 pub mod validate;
 
 pub use action::{ActionSpec, Args, Param, ParamKind, Risk, Validator};
-pub use context::{last_lines, logged, shell_quote, Context, Distro, TtyProcess};
+pub use context::{last_lines, logged, shell_quote, total_memory_kib, Context, Distro, TtyProcess};
 pub use output::{Column, Output, Table};
 pub use registry::{BoxFuture, ModuleSpec, Registry, ShellFn};

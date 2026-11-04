@@ -40,6 +40,13 @@ pub enum UpdateLevel {
     Security,
 }
 
+/// Shown next to the model name when it runs on the processor (no usable
+/// discrete GPU); see the AI assistant chapter of the handbook.
+pub const CPU_MODE_BADGE: &str = "cpu mode · slower";
+pub const CPU_MODE_TIP: &str = "No usable discrete GPU, so the model runs on the processor. \
+Replies take a few seconds, the first one up to half a minute. \
+On NVIDIA cards, AI assistant → Set up installs the driver that makes the GPU usable.";
+
 /// How to start the local model here: the service from yaist-offline, the
 /// podman script the yaist package ships, or the one in a source checkout.
 pub fn llm_start_hint() -> &'static str {

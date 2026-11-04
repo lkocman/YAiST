@@ -7,8 +7,9 @@ configuration, demos and screenshots. For what YAiST is, see the
 ## Running from source
 
 ```sh
-# 1. The local model (rootless podman, Vulkan GPU if available; first start
-#    downloads ~2.5 GB)
+# 1. The local model (packaged llama-server, else rootless podman; first
+#    start downloads ~2.5 GB). Without a usable discrete GPU it runs in CPU
+#    mode, see docs/handbook/modules/assistant.adoc
 scripts/llm-server.sh
 
 # 2. Build (needs cargo; without it, builds in a Leap 16.0 container)
@@ -56,10 +57,12 @@ In the planned design all of this moves into a privileged `yaistd` daemon.
 | `YAIST_HELPER` | path to `yaist-helper`; default: the installed one, else next to the binary |
 | `YAIST_RELEASE_NOTES` | a release-notes HTML page to read instead of the installed or online ones (testing) |
 | `YAIST_END_OF_LIFE` | pretend the end of support is this date (`YYYY-MM-DD`), to see the END OF LIFE state |
+| `YAIST_TOTAL_MEM_KIB` | pretend to have this much memory, to see the below-minimum notice (e.g. `3500000`) |
 | `YAIST_OS_RELEASE` | pretend to be another flavour, e.g. `tests/os-release/leap-16.1-immutable` (development; check plans only) |
 | `YAIST_MODEL` (llm-server.sh) | `unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M` |
 | `YAIST_LLM_PORT` (llm-server.sh) | `8080` |
 | `YAIST_LLM_IMAGE` (llm-server.sh) | `ghcr.io/ggml-org/llama.cpp:server-vulkan` |
+| `YAIST_LLM_DEVICE` (llm-server.sh) | `auto`: the discrete GPU if usable (NVIDIA with its driver, AMD with own memory), else CPU mode, marked `@cpu` in the model alias; `gpu` or `cpu` forces one |
 
 ## Demos
 

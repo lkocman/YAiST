@@ -70,19 +70,73 @@ through Vulkan:
   programs which GPU is which, and YAiST starts the model on the
   discrete GPU through it.
 
+[[assistant-requirements]]
+==== Minimum and recommended hardware
+
+The default model is Qwen3-4B, about 2.5 GB, plus memory for the
+conversation (the context).
+
+[cols="1,2,2",options="header"]
+|===
+| |Minimum (CPU mode) |Recommended (GPU)
+|Memory |8 GB |16 GB
+|Processor |4 threads; on x86-64 with AVX2 (most processors since 2015) |Any of the above
+|Graphics |Not needed |A discrete GPU with at least 4 GB of its own memory: NVIDIA with NVIDIA's driver, or AMD. 6 GB or more for the full 16k-token context
+|Disk |3 GB for the model |3 GB for the model
+|===
+
+On a computer below the minimum the assistant is not offered. YAiST says
+so once, in the conversation when it starts, and the readiness panel
+lists what is missing. Everything else in YAiST works the same, so
+nothing is lost but the conversation.
+
+[[assistant-cpu-mode]]
+==== CPU mode
+
+Without a GPU the model can use, the assistant runs on the processor:
+*CPU mode*. A GPU it can use is an NVIDIA card with NVIDIA's driver
+running, or an AMD card with memory of its own. Typical CPU-mode cases:
+
+* a freshly installed laptop with Intel and NVIDIA graphics, before the
+  NVIDIA driver is installed,
+* a computer with integrated graphics only.
+
+YAiST does not use the integrated GPU for the model. On most laptops it
+is slower than the processor, and the model can fail on it.
+
+CPU mode works, but more slowly: the first reply can take up to half a
+minute while the model reads its instructions, later replies a few
+seconds. YAiST shows a *CPU MODE · SLOWER* label next to the model name
+at the top of the window, so you know why (<<fig-cpu-mode>>).
+
+[[fig-cpu-mode]]
+.CPU mode at the top right, and the notice on a computer below the minimum
+image::cpu-mode.png[The YAiST window with the CPU MODE · SLOWER label next to the model name, and a notice in the conversation that the computer has too little memory for the assistant,pdfwidth=100%] On NVIDIA laptops, *Set up*
+(<<assistant-set-up>>) installs the driver; after the reboot the
+assistant runs on the GPU and the label goes away.
+
+[TIP]
+====
+Some recent integrated GPUs, such as AMD's Radeon 780M, can be faster than
+the processor. To try the GPU anyway, start the model server with
+`YAIST_LLM_DEVICE=gpu`; `YAIST_LLM_DEVICE=cpu` forces CPU mode.
+====
+
 [[assistant-check]]
 === Assistant readiness
 
-Open *AI assistant* in the sidebar. The panel lists the computer's GPUs and
-says for each requirement whether it is met: the NVIDIA driver (loaded,
-installed but waiting for a reboot, or missing), GPU switching on
+Open *AI assistant* in the sidebar. The panel says whether the computer
+meets the minimum (<<assistant-requirements>>) and whether the assistant
+runs on the GPU or in CPU mode (<<assistant-cpu-mode>>). It lists the GPUs
+and says for each requirement whether it is met: the NVIDIA driver
+(loaded, installed but waiting for a reboot, or missing), GPU switching on
 computers with two GPUs, and the llama.cpp runtime.
 
 // BEGIN GENERATED assistant.status -- written by `yaist docs` from the module's code; edit the code, not this block
 [[assistant.status]]
 [.operation]
 ****
-Check whether this computer can run the local AI assistant: the GPUs, the NVIDIA driver, GPU switching (switcheroo-control) on computers with two GPUs, and the llama.cpp runtime.
+Check whether this computer can run the local AI assistant: the minimum memory and processor, whether it runs on the GPU or in the slower CPU mode, the GPUs, the NVIDIA driver, GPU switching (switcheroo-control) on computers with two GPUs, and the llama.cpp runtime.
 
 *Command:* `/assistant status` +
 *Runs:* straight away; it only reads the system.
@@ -90,6 +144,7 @@ Check whether this computer can run the local AI assistant: the GPUs, the NVIDIA
 .In the terminal
 [source,shell]
 ----
+grep -E 'MemTotal' /proc/meminfo; nproc; grep -c avx2 /proc/cpuinfo
 lspci | grep -iE 'vga|3d'
 lsmod | grep -E '^(nvidia|nouveau)'
 switcherooctl list
