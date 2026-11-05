@@ -175,10 +175,8 @@ struct User {
     shell: String,
 }
 
-fn passwd() -> Vec<User> {
-    std::fs::read_to_string("/etc/passwd")
-        .unwrap_or_default()
-        .lines()
+fn parse_passwd(text: &str) -> Vec<User> {
+    text.lines()
         .filter_map(|l| {
             let f: Vec<&str> = l.split(':').collect();
             (f.len() >= 7).then(|| User {
@@ -192,7 +190,30 @@ fn passwd() -> Vec<User> {
         .collect()
 }
 
+fn passwd() -> Vec<User> {
+    if let Ok(out) = std::process::Command::new("getent").arg("passwd").output() {
+        if out.status.success() {
+            if let Ok(text) = std::str::from_utf8(&out.stdout) {
+                let users = parse_passwd(text);
+                if !users.is_empty() {
+                    return users;
+                }
+            }
+        }
+    }
+    std::fs::read_to_string("/etc/passwd").map(|s| parse_passwd(&s)).unwrap_or_default()
+}
+
 fn lookup(name: &str) -> Option<User> {
+    if let Ok(out) = std::process::Command::new("getent").args(["passwd", name]).output() {
+        if out.status.success() {
+            if let Ok(text) = std::str::from_utf8(&out.stdout) {
+                if let Some(user) = parse_passwd(text).into_iter().find(|u| u.name == name) {
+                    return Some(user);
+                }
+            }
+        }
+    }
     passwd().into_iter().find(|u| u.name == name)
 }
 
@@ -205,11 +226,8 @@ fn human_user(name: &str) -> Result<User> {
     }
 }
 
-/// /etc/group: (name, gid, supplementary members).
-fn group_file() -> Vec<(String, String, Vec<String>)> {
-    std::fs::read_to_string("/etc/group")
-        .unwrap_or_default()
-        .lines()
+fn parse_groups(text: &str) -> Vec<(String, String, Vec<String>)> {
+    text.lines()
         .filter_map(|l| {
             let f: Vec<&str> = l.split(':').collect();
             (f.len() >= 4).then(|| (f[0].to_owned(), f[2].to_owned(), f[3].split(',').filter(|s| !s.is_empty()).map(str::to_owned).collect()))
@@ -217,7 +235,32 @@ fn group_file() -> Vec<(String, String, Vec<String>)> {
         .collect()
 }
 
+/// Name database group entries: (name, gid, supplementary members).
+/// Reads via getent (honoring NSS/LDAP/SSSD) with fallback to /etc/group.
+fn group_file() -> Vec<(String, String, Vec<String>)> {
+    if let Ok(out) = std::process::Command::new("getent").arg("group").output() {
+        if out.status.success() {
+            if let Ok(text) = std::str::from_utf8(&out.stdout) {
+                let grps = parse_groups(text);
+                if !grps.is_empty() {
+                    return grps;
+                }
+            }
+        }
+    }
+    std::fs::read_to_string("/etc/group").map(|s| parse_groups(&s)).unwrap_or_default()
+}
+
 fn group_exists(group: &str) -> bool {
+    if let Ok(out) = std::process::Command::new("getent").args(["group", group]).output() {
+        if out.status.success() {
+            if let Ok(text) = std::str::from_utf8(&out.stdout) {
+                if parse_groups(text).iter().any(|(name, ..)| name == group) {
+                    return true;
+                }
+            }
+        }
+    }
     group_file().iter().any(|(name, ..)| name == group)
 }
 
@@ -265,4 +308,36 @@ async fn delete(ctx: &Context, user: &str, remove_home: bool) -> Result<Output> 
     argv.extend(["--", user]);
     ctx.run_privileged(&argv).await?;
     Ok(Output::Done(format!("Deleted user {user}{}", if remove_home { " and their home directory" } else { "" })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_passwd_entries() {
+        let sample = "root:x:0:0:root:/root:/bin/bash\n\
+                      alice:x:1001:100:Alice Smith,Room 101:/home/alice:/bin/bash\n\
+                      bob:x:1002:100::/home/bob:/bin/zsh\n";
+        let users = parse_passwd(sample);
+        assert_eq!(users.len(), 3);
+        assert_eq!(users[1].name, "alice");
+        assert_eq!(users[1].uid, 1001);
+        assert_eq!(users[1].gecos, "Alice Smith");
+        assert_eq!(users[1].home, "/home/alice");
+        assert_eq!(users[1].shell, "/bin/bash");
+        assert_eq!(users[2].gecos, "");
+    }
+
+    #[test]
+    fn parse_group_entries() {
+        let sample = "root:x:0:\n\
+                      wheel:x:10:alice,bob\n\
+                      users:x:100:\n";
+        let grps = parse_groups(sample);
+        assert_eq!(grps.len(), 3);
+        assert_eq!(grps[1].0, "wheel");
+        assert_eq!(grps[1].1, "10");
+        assert_eq!(grps[1].2, vec!["alice", "bob"]);
+    }
 }
