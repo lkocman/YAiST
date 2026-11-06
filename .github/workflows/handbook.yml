@@ -38,7 +38,7 @@ jobs:
         with:
           name: opensuse-handbook
           path: target/handbook
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
           path: target/handbook
