@@ -5,7 +5,7 @@
 use anyhow::{anyhow, bail, Result};
 use serde_json::{Map, Value};
 
-use crate::{ActionSpec, Args, Registry};
+use crate::{ActionSpec, Args, Param, ParamKind, Registry};
 
 pub enum Parsed {
     Action { spec: ActionSpec, raw: Map<String, Value> },
@@ -297,6 +297,84 @@ pub fn translate(line: &str) -> Result<String> {
     })
 }
 
+/// The words that can finish the last word of a command line, for Tab.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Completion {
+    /// Byte offset in the line where the word being completed starts.
+    pub start: usize,
+    /// Whole words that can stand there, each starting with the partial
+    /// word already typed: names sorted, parameters in the action's order.
+    pub candidates: Vec<String>,
+}
+
+/// A command the client handles itself rather than the registry (`/clear`,
+/// `/zoom`): its name with the slash, and the words its argument can be.
+pub type ClientCommand = (&'static str, &'static [&'static str]);
+
+/// Completes the last word of `line` (the text before the cursor): after
+/// `/` the commands and modules, then a module's verbs, then an action's
+/// choices, yes/no values and `name=` parameters. Plain-language requests
+/// complete to nothing.
+pub fn complete(registry: &Registry, line: &str, client: &[ClientCommand]) -> Completion {
+    let start = line.char_indices().rev().find(|(_, c)| c.is_whitespace()).map_or(0, |(i, c)| i + c.len_utf8());
+    let word = &line[start..];
+    let before: Vec<&str> = line[..start].split_whitespace().collect();
+    let client_args = |cmd: &str| client.iter().find(|(name, _)| name.strip_prefix('/') == Some(cmd)).map(|(_, args)| *args);
+    // Names sort; an action's parameters keep its order, as /help shows them.
+    let (mut words, sorted): (Vec<String>, bool) = match before.split_first() {
+        None if word.starts_with('/') => {
+            let mut w = vec!["/help".to_owned()];
+            w.extend(registry.modules.iter().map(|m| format!("/{}", m.id)));
+            w.extend(client.iter().map(|(name, _)| (*name).to_owned()));
+            (w, true)
+        }
+        None => (Vec::new(), false),
+        Some((first, rest)) => match (first.strip_prefix('/'), rest) {
+            (Some("help" | "?"), []) => (registry.modules.iter().map(|m| m.id.to_owned()).collect(), true),
+            (Some(cmd), []) if client_args(cmd).is_some() => (client_args(cmd).unwrap_or_default().iter().map(|a| (*a).to_owned()).collect(), false),
+            (Some(m), []) => (registry.module_actions(m).iter().map(|s| s.verb().replace('_', "-")).collect(), true),
+            (Some(m), [verb, typed @ ..]) => match registry.get(&format!("{m}.{}", verb.replace('-', "_"))) {
+                Some(spec) => (param_words(spec, typed, word), false),
+                None => (Vec::new(), false),
+            },
+            (None, _) => (Vec::new(), false),
+        },
+    };
+    if sorted {
+        words.sort();
+    }
+    let mut candidates: Vec<String> = Vec::new();
+    for w in words {
+        if w.starts_with(word) && !candidates.contains(&w) {
+            candidates.push(w);
+        }
+    }
+    Completion { start, candidates }
+}
+
+/// The values a parameter can take, when there is a fixed set.
+fn values(p: &Param) -> &'static [&'static str] {
+    match p.kind {
+        ParamKind::Choice(options) => options,
+        ParamKind::Bool => &["yes", "no"],
+        ParamKind::Text | ParamKind::Integer => &[],
+    }
+}
+
+/// What can follow the arguments already `typed` for `spec`, the way
+/// [`parse`] reads them: `name=value`, or the next free parameter in order.
+fn param_words(spec: &ActionSpec, typed: &[&str], word: &str) -> Vec<String> {
+    if let Some((name, _)) = word.split_once('=') {
+        return spec.param(name).map(|p| values(p).iter().map(|v| format!("{name}={v}")).collect()).unwrap_or_default();
+    }
+    let named: Vec<&str> = typed.iter().filter_map(|w| w.split_once('=').map(|(k, _)| k)).filter(|k| spec.param(k).is_some()).collect();
+    let positional = typed.len() - named.len();
+    let free: Vec<&Param> = spec.params.iter().filter(|p| !named.contains(&p.name)).skip(positional).collect();
+    let mut out: Vec<String> = free.first().map(|p| values(p).iter().map(|v| (*v).to_owned()).collect()).unwrap_or_default();
+    out.extend(free.iter().map(|p| format!("{}=", p.name)));
+    out
+}
+
 fn quote(s: &str) -> String {
     if !s.is_empty() && !s.chars().any(|c| c.is_whitespace() || c == '"' || c == '\'') {
         return s.to_owned();
@@ -465,6 +543,37 @@ mod tests {
         assert!(!is_tool_command("install fish please"));
         assert!(!is_tool_command("/packages install fish"));
         assert!(translate("zypper frobnicate").is_err());
+    }
+
+    #[test]
+    fn completes_words() {
+        let mut reg = registry();
+        reg.module(crate::ModuleSpec {
+            id: "firewall",
+            title: "Firewall",
+            tagline: "test",
+            overview: "firewall.open_port",
+            row_actions: &[],
+            overview_needs_admin: false,
+        });
+        let client: &[ClientCommand] = &[("/demo", &["update-done", "upgrade-running"]), ("/clear", &[])];
+        let words = |line: &str| complete(&reg, line, client).candidates;
+        assert_eq!(words("/"), ["/clear", "/demo", "/firewall", "/help"]);
+        assert_eq!(words("/de"), ["/demo"]);
+        assert_eq!(words("/demo u"), ["update-done", "upgrade-running"]);
+        assert_eq!(words("/demo upg"), ["upgrade-running"]);
+        assert_eq!(words("/help f"), ["firewall"]);
+        assert_eq!(words("/firewall "), ["open-port"]);
+        // The port is free text; the protocol is next, with its choices.
+        assert_eq!(words("/firewall open-port "), ["port=", "protocol=", "zone="]);
+        assert_eq!(words("/firewall open-port 80 "), ["tcp", "udp", "protocol=", "zone="]);
+        assert_eq!(words("/firewall open-port port=80 "), ["tcp", "udp", "protocol=", "zone="]);
+        assert_eq!(words("/firewall open-port 80 protocol="), ["protocol=tcp", "protocol=udp"]);
+        assert_eq!(words("/firewall open-port 80 udp z"), ["zone="]);
+        assert!(words("/clear ").is_empty());
+        assert!(words("/nope ").is_empty());
+        assert!(words("install fish").is_empty());
+        assert_eq!(complete(&reg, "/demo upd", client).start, 6);
     }
 
     #[test]
