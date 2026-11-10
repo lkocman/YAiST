@@ -3,6 +3,7 @@ use std::time::Duration;
 use egui::{vec2, Color32, CornerRadius, FontId, Frame, Margin, RichText, Stroke, Ui};
 use serde_json::{Map, Value};
 use yaist_core::{Output, ParamKind, Risk, Table};
+use yaist_ui::complete::Completer;
 use yaist_ui::release_notes;
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{
@@ -63,6 +64,10 @@ struct View {
 pub struct App {
     session: Session,
     input: String,
+    /// Tab completion of /commands in the input.
+    completer: Completer,
+    /// A candidate was clicked: give the input its focus back, cursor last.
+    focus_input_end: bool,
     form: Option<Form>,
     /// A row opened in its own dialog (double-click).
     detail: Option<Detail>,
@@ -131,9 +136,21 @@ impl App {
             let after = v.next().and_then(|n| n.ok()).unwrap_or(2.0);
             Some((egui::pos2(x, y), clicks, std::time::Instant::now() + Duration::from_secs_f32(after)))
         });
+        // Typed into the input at start; a tab presses Tab (screenshots of
+        // the completion).
+        let (mut input, mut completer) = (String::new(), Completer::default());
+        for ch in std::env::var("YAIST_DEMO_TYPE").unwrap_or_default().chars() {
+            if ch == '\t' {
+                completer.tab(&session.registry, &mut input, true);
+            } else {
+                input.push(ch);
+            }
+        }
         Self {
             session,
-            input: String::new(),
+            input,
+            completer,
+            focus_input_end: false,
             form: None,
             detail: None,
             all_columns: Default::default(),
@@ -1233,6 +1250,23 @@ impl App {
                 widgets::hud(ui, "a change is waiting for you above", t.warn);
                 ui.add_space(6.0);
             }
+            // Tab's candidates, once Tab could add nothing more.
+            if let Some((words, pick)) = self.completer.shown(&self.input) {
+                let mut clicked = None;
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+                    for (i, w) in words.iter().enumerate() {
+                        if widgets::candidate(ui, w, Some(i) == pick).clicked() {
+                            clicked = Some(i);
+                        }
+                    }
+                });
+                if let Some(i) = clicked {
+                    self.completer.pick(i, &mut self.input);
+                    self.focus_input_end = true;
+                }
+                ui.add_space(6.0);
+            }
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 let (send_w, h) = (84.0, theme::CONTROL_H + 6.0);
@@ -1255,13 +1289,29 @@ impl App {
                 let mut fu = ui.new_child(
                     egui::UiBuilder::new().max_rect(field.shrink2(vec2(12.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center)),
                 );
+                // On a /command, Tab completes instead of moving the focus.
+                let completing = Completer::wants_tab(&self.input);
                 let edit = fu.add(
                     egui::TextEdit::singleline(&mut self.input)
+                        .lock_focus(completing)
                         .hint_text(RichText::new("Ask YAiST, or type /help").color(t.faint))
                         .frame(Frame::NONE)
                         .desired_width(field.width() - 24.0)
                         .font(FontId::new(14.0, egui::FontFamily::Proportional)),
                 );
+                if completing && edit.has_focus() {
+                    let back = ui.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab));
+                    let tab = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab));
+                    if tab || back {
+                        self.completer.tab(&self.session.registry, &mut self.input, tab);
+                        self.cursor_to_end(ui.ctx(), edit.id);
+                        ui.ctx().request_repaint();
+                    }
+                }
+                if std::mem::take(&mut self.focus_input_end) {
+                    edit.request_focus();
+                    self.cursor_to_end(ui.ctx(), edit.id);
+                }
                 let enter = edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 let send = widgets::button_sized(ui, "Send", Kind::Primary, send_w, h).clicked();
                 if (enter || send) && !self.input.trim().is_empty() {
@@ -1283,6 +1333,15 @@ impl App {
                 }
             });
         });
+    }
+
+    /// Puts the input's cursor after its text (after completing it).
+    fn cursor_to_end(&self, ctx: &egui::Context, id: egui::Id) {
+        if let Some(mut state) = egui::TextEdit::load_state(ctx, id) {
+            let end = egui::text::CCursor::new(self.input.chars().count());
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+            state.store(ctx, id);
+        }
     }
 
     /// The empty conversation invites a first request, with examples that

@@ -107,6 +107,9 @@ and `/commands` work and the conversation says how to start it.
   chapter per module
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): running from source, the
   command line, privileges, configuration, demos and screenshots
+- [docs/SYSTEM-INTERFACES.md](docs/SYSTEM-INTERFACES.md): the actions,
+  the `/command` language, completion, tool calls and privileged
+  operations, as an interface for other front ends
 - [PLAN.md](PLAN.md): the design
 - [docs/LICENSING.md](docs/LICENSING.md): licensing
 

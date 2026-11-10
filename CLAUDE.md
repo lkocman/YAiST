@@ -1,7 +1,9 @@
 # YAiST: notes for coding agents and contributors
 
 Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for building, running and
-the settings; [PLAN.md](PLAN.md) for the design.
+the settings; [docs/SYSTEM-INTERFACES.md](docs/SYSTEM-INTERFACES.md) for
+the actions, `/commands`, completion and tool calls; [PLAN.md](PLAN.md)
+for the design.
 
 ## Every change that users can notice updates the handbook
 

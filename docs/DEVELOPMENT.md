@@ -103,6 +103,7 @@ The GUI takes one shot and quits when told:
 | `YAIST_DEMO_CONFIRM` | `1` confirms the plan the request raises |
 | `YAIST_DEMO_CLICK` | `x,y[,clicks[,seconds]]` clicks there (2 for a double-click), after 2 seconds or as given |
 | `YAIST_DEMO_SCENE` | shows a demo scene at start, without the `/demo` line |
+| `YAIST_DEMO_TYPE` | types this into the conversation input at start, without sending it; each tab presses Tab (e.g. `$'/demo \t\t'` shows the completion) |
 
 ## The openSUSE Handbook
 

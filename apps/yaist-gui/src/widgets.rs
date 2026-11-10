@@ -51,6 +51,18 @@ pub fn tag(ui: &mut Ui, text: &str, fill: Color32, ink: Color32) -> Response {
     resp
 }
 
+/// One of Tab's candidates, in mono as it would be typed: inverted when
+/// picked, clickable.
+pub fn candidate(ui: &mut Ui, text: &str, picked: bool) -> Response {
+    let t = Tokens::get(ui.ctx());
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), egui::FontId::new(12.5, theme::mono()), t.ink);
+    let (rect, resp) = ui.allocate_exact_size(galley.size() + vec2(16.0, 8.0), Sense::click());
+    let (fill, ink) = if picked || resp.hovered() { (t.invert_bg, t.invert_fg) } else { (t.sunken, t.muted) };
+    ui.painter().rect(rect, CornerRadius::ZERO, fill, t.hairline(), egui::StrokeKind::Inside);
+    paint_centred(ui, rect, galley, ink);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 /// An outlined status label on a sunken fill.
 /// A small clickable box in the badge style: filled with `fill` (the
 /// suggested choice) or outlined like a badge; inverts on hover.

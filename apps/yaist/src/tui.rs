@@ -12,6 +12,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState};
 use ratatui::Frame;
 use yaist_core::{ActionSpec, Output, ParamKind, Risk};
+use yaist_ui::complete::Completer;
 use yaist_ui::palette::{Rgb, Tokens};
 use yaist_ui::welcome::{self, Start};
 use yaist_ui::{reboot_notice, update_summary, UpdateLevel, UPDATE_ACTION};
@@ -40,6 +41,7 @@ struct App {
     cursor: usize,
     history: Vec<String>,
     history_pos: Option<usize>,
+    completer: Completer,
     table: TableState,
     /// Lines scrolled up from the bottom of the conversation.
     scroll_up: u16,
@@ -95,8 +97,14 @@ pub fn snapshot(inputs: &[String], width: u16, height: u16) -> Result<()> {
     };
     settle(&app);
     for line in inputs {
+        // A tab presses Tab; a line ending in one stays in the input, to
+        // show the completion.
         for ch in line.chars() {
-            app.key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+            let code = if ch == '\t' { KeyCode::Tab } else { KeyCode::Char(ch) };
+            app.key(KeyEvent::new(code, KeyModifiers::NONE));
+        }
+        if line.ends_with('\t') {
+            continue;
         }
         app.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         std::thread::sleep(Duration::from_millis(300));
@@ -126,6 +134,7 @@ impl App {
             cursor: 0,
             history: Vec::new(),
             history_pos: None,
+            completer: Completer::default(),
             table: TableState::default().with_selected(Some(0)),
             scroll_up: 0,
             menu: None,
@@ -158,6 +167,17 @@ impl App {
         }
         if self.menu.is_some() {
             return self.menu_key(key);
+        }
+        // On a /command, Tab completes instead of moving the focus.
+        let completing = matches!(key.code, KeyCode::Tab | KeyCode::BackTab)
+            && self.focus == Focus::Input
+            && Completer::wants_tab(&self.input)
+            && self.session.state().pending_plan().is_none();
+        if completing {
+            let reg = self.session.registry.clone();
+            self.completer.tab(&reg, &mut self.input, key.code == KeyCode::Tab);
+            self.cursor = self.input.chars().count();
+            return;
         }
         match key.code {
             KeyCode::PageUp => return self.scroll_up = self.scroll_up.saturating_add(8),
@@ -933,6 +953,10 @@ impl App {
             Line::from(vec![prompt, Span::styled(self.input.clone(), self.style(t.ink_strong))])
         };
         f.render_widget(Paragraph::new(line), inner);
+        if let Some((words, pick)) = self.completer.shown(&self.input).filter(|_| inner.height > 1) {
+            let row = Rect { y: inner.y + 1, height: 1, ..inner };
+            f.render_widget(Paragraph::new(self.candidates_line(words, pick, row.width as usize)), row);
+        }
         if focused {
             f.set_cursor_position((inner.x + 3 + self.cursor as u16, inner.y));
         }
@@ -1107,6 +1131,25 @@ impl App {
         }
     }
 
+    /// Tab's candidates on one row, scrolled so the picked one shows.
+    fn candidates_line(&self, words: &[String], pick: Option<usize>, width: usize) -> Line<'static> {
+        let t = self.t;
+        let cell = |w: &String| w.chars().count() + 2;
+        let mut first = 0;
+        if let Some(p) = pick {
+            while first < p && words[first..=p].iter().map(cell).sum::<usize>() + 3 > width {
+                first += 1;
+            }
+        }
+        let mut spans = vec![Span::raw("   ")];
+        for (i, w) in words.iter().enumerate().skip(first) {
+            let style =
+                if Some(i) == pick { Style::new().fg(c(t.invert_fg)).bg(c(t.invert_bg)).add_modifier(Modifier::BOLD) } else { self.style(t.muted) };
+            spans.push(Span::styled(format!(" {w} "), style));
+        }
+        Line::from(spans)
+    }
+
     fn draw_footer(&self, f: &mut Frame, area: Rect, s: &State) {
         let t = &self.t;
         let keys = if s.question.is_some() {
@@ -1121,7 +1164,7 @@ impl App {
             match self.focus {
                 Focus::Modules => "↑↓ module · enter open · tab focus · ctrl-q quit",
                 Focus::Panel => "↑↓ row · enter row actions · a module actions · u install all updates · s security only · r refresh · tab focus",
-                Focus::Input => "enter send · ↑ history · pgup/pgdn scroll · tab focus · ctrl-q quit",
+                Focus::Input => "enter send · tab complete /commands · ↑ history · pgup/pgdn scroll · tab focus · ctrl-q quit",
             }
         };
         let right = format!("llm {} ", s.llm_url);

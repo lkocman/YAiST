@@ -38,6 +38,29 @@ plans, progress and results. You can also type commands here, such as
 `/firewall overview` or `/help`, and familiar terminal commands like
 `zypper in fish` are understood too.
 
+[[welcome-commands]]
+=== Typing commands
+
+A command starts with `/`, then the module and what to do, such as
+`/services restart sshd`. `/help` lists the modules, and `/help services`
+lists what the Services module can do.
+
+You don't have to remember them: press kbd:[Tab] while typing a command, as
+in a terminal. `/se` and kbd:[Tab] gives `/services`, or as much as all
+matching commands share. When kbd:[Tab] can add nothing more, it lists what
+can come next (<<fig-completion>>). Press kbd:[Tab] again to go through
+them and kbd:[Shift+Tab] to go back, or click one in the desktop window.
+After the command, kbd:[Tab] also offers the fixed choices, such as `tcp`
+and `udp` for a port, and the names of the settings you can add, such as
+`zone=`. Names, packages and other free text are yours to type.
+
+On anything that isn't a command, kbd:[Tab] moves to the next part of the
+window, as usual.
+
+[[fig-completion]]
+.kbd:[Tab] lists what can follow `/services`
+image::completion.png[The conversation input with /services enable typed; above it the possible actions disable, enable, list, restart, start, status and stop, with enable picked,pdfwidth=100%]
+
 To make the text bigger, for screen sharing or reading comfort, use the
 *A-* and *A+* buttons in the header, kbd:[Ctrl+Plus] and kbd:[Ctrl+Minus],
 or kbd:[Ctrl+0] to go back to normal. YAiST remembers the size.
