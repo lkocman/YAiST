@@ -76,6 +76,14 @@ assistant, first show a *plan card*:
 * the terminal commands it stands for,
 * *Confirm*, *Edit* and *Cancel*.
 
+Before showing a plan, YAiST checks whether the change is already in
+place: the package is already installed, SELinux is already enforcing, the
+service is already running, the user is already in the group. Then there is
+nothing to confirm. YAiST says *Nothing to do* and why, and the assistant
+gets the same answer. `yaist run` prints it and stops, even without
+`--yes`. If YAiST can't tell, for example because a service doesn't exist,
+the plan appears as usual.
+
 Plans for changes that are hard to undo, or that change what the system
 trusts, such as removing a user or adding a repository, are marked in red.
 Read those twice.

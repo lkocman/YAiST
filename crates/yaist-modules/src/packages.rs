@@ -156,6 +156,16 @@ pub fn register(reg: &mut Registry) {
         let out = pkg_op(&ctx, "install", &targets).await?;
         Ok(Output::Done(format!("Install {}: {out}", targets.join(", "))))
     });
+    reg.already_done(INSTALL.id, |ctx, args| async move {
+        let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
+        let installed = rpm_installed(&ctx, &pkgs).await?;
+        installed.iter().all(|&i| i).then(|| format!("{} {} already installed", and_list(&pkgs), if pkgs.len() == 1 { "is" } else { "are" }))
+    });
+    reg.already_done(REMOVE.id, |ctx, args| async move {
+        let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
+        let installed = rpm_installed(&ctx, &pkgs).await?;
+        installed.iter().all(|&i| !i).then(|| format!("{} {} not installed", and_list(&pkgs), if pkgs.len() == 1 { "is" } else { "are" }))
+    });
     reg.action(UPDATE, |ctx, args| async move {
         let pkgs: Vec<&str> = args.str("packages").split_whitespace().collect();
         let out = pkg_op(&ctx, "update", &pkgs).await?;
@@ -210,6 +220,14 @@ pub fn register(reg: &mut Registry) {
     reg.action(FLATPAK_REMOVE, |ctx, args| async move {
         flatpak::remove(&ctx, args.str("app")).await?;
         Ok(Output::Done(format!("Removed {}", args.str("app"))))
+    });
+    reg.already_done(FLATPAK_INSTALL.id, |ctx, args| async move {
+        let app = args.str("app");
+        flatpak::app_installed(&ctx, app).await.then(|| format!("{app} is already installed for your user"))
+    });
+    reg.already_done(FLATPAK_REMOVE.id, |ctx, args| async move {
+        let app = args.str("app");
+        (!flatpak::app_installed(&ctx, app).await).then(|| format!("{app} is not installed for your user"))
     });
     reg.shell(FLATPAK_SEARCH.id, |a, _| vec![format!("flatpak search {}", sq(a.str("query")))]);
     reg.shell(FLATPAK_LIST.id, |_, _| vec!["flatpak list --user --app".into()]);
@@ -292,6 +310,31 @@ fn pkg_cmd(op: &str, packages: &str, d: &yaist_core::Distro) -> Vec<String> {
         vec![format!("sudo transactional-update --continue pkg {op} {}", pkgs.join(" ")), "sudo reboot".into()]
     } else {
         vec![format!("sudo zypper {op} {}", pkgs.join(" "))]
+    }
+}
+
+/// Whether each package is installed in the running system (`rpm -q`, no
+/// root). `None` when rpm can't be asked. On immutable systems a package
+/// installed into the next snapshot doesn't count yet.
+pub(crate) async fn rpm_installed(ctx: &Context, pkgs: &[&str]) -> Option<Vec<bool>> {
+    let mut out = Vec::new();
+    for p in pkgs {
+        // Names are validated not to start with '-'.
+        match ctx.exit_code(&["/usr/bin/rpm", "--query", "--quiet", p]).await.ok()? {
+            0 => out.push(true),
+            1 => out.push(false),
+            _ => return None,
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+/// "fish", "fish and vim", "fish, vim and git".
+fn and_list(items: &[&str]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => (*one).to_owned(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
     }
 }
 
@@ -600,6 +643,13 @@ async fn info(ctx: &Context, package: &str) -> Result<Output> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_lists_read_as_prose() {
+        assert_eq!(and_list(&["fish"]), "fish");
+        assert_eq!(and_list(&["fish", "vim"]), "fish and vim");
+        assert_eq!(and_list(&["fish", "vim", "git"]), "fish, vim and git");
+    }
 
     /// The shape of `zypper --xmlout list-updates` on Leap.
     const LIST_UPDATES: &str = "<?xml version='1.0'?>

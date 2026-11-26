@@ -96,6 +96,35 @@ pub fn register(reg: &mut Registry) {
         Ok(Output::Done(format!("Disabled {u}")))
     });
 
+    reg.already_done(START.id, |ctx, args| async move {
+        let u = unit(args.str("unit"));
+        let s = unit_state(&ctx, &u).await?;
+        s.running().then(|| format!("{u} is already running"))
+    });
+    reg.already_done(STOP.id, |ctx, args| async move {
+        let u = unit(args.str("unit"));
+        let s = unit_state(&ctx, &u).await?;
+        s.stopped().then(|| format!("{u} is not running"))
+    });
+    reg.already_done(ENABLE.id, |ctx, args| async move {
+        let u = unit(args.str("unit"));
+        let s = unit_state(&ctx, &u).await?;
+        match (s.boot.as_str(), args.bool("now")) {
+            ("enabled", false) => Some(format!("{u} is already enabled")),
+            ("enabled", true) if s.running() => Some(format!("{u} is already enabled and running")),
+            _ => None,
+        }
+    });
+    reg.already_done(DISABLE.id, |ctx, args| async move {
+        let u = unit(args.str("unit"));
+        let s = unit_state(&ctx, &u).await?;
+        match (s.boot.as_str(), args.bool("now")) {
+            ("disabled", false) => Some(format!("{u} is already disabled")),
+            ("disabled", true) if s.stopped() => Some(format!("{u} is already disabled and stopped")),
+            _ => None,
+        }
+    });
+
     reg.shell(LIST.id, |a, _| {
         vec![match a.str("state") {
             "running" => "systemctl list-units --type=service --state=running".into(),
@@ -119,6 +148,34 @@ fn unit(name: &str) -> String {
     } else {
         format!("{name}.service")
     }
+}
+
+/// A unit's running and boot state, read without authentication.
+struct UnitState {
+    active: String,
+    /// `enabled`, `disabled`, `static`…
+    boot: String,
+}
+
+impl UnitState {
+    fn running(&self) -> bool {
+        self.active == "active"
+    }
+    fn stopped(&self) -> bool {
+        matches!(self.active.as_str(), "inactive" | "failed")
+    }
+}
+
+/// `None` when systemd can't be asked or there is no such unit: the change
+/// then goes ahead and reports the problem itself.
+async fn unit_state(ctx: &Context, unit: &str) -> Option<UnitState> {
+    let path: OwnedObjectPath = ctx.call(SYSTEMD, SYSTEMD_PATH, MANAGER, "LoadUnit", &(unit,), false).await.ok()?;
+    let p = path.as_str();
+    let prop = |name: &'static str| async move { ctx.property::<String>(SYSTEMD, p, UNIT, name).await.ok() };
+    if prop("LoadState").await? != "loaded" {
+        return None;
+    }
+    Some(UnitState { active: prop("ActiveState").await?, boot: prop("UnitFileState").await? })
 }
 
 /// Enables a unit at boot (`systemctl enable [--now]`); systemd asks polkit.

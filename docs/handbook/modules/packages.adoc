@@ -89,6 +89,12 @@ the same thing. zypper then offers ways out, and YAiST asks you about each
 conflict in turn, with zypper's own solutions to pick from. Nothing is
 installed until every conflict is settled and you have seen the summary.
 
+If every package you asked for is already installed, YAiST says *Nothing to
+do* instead of showing a plan, and the same goes for removing packages that
+aren't installed. If only some of them are installed, the plan appears and
+zypper skips the ones you already have. On an immutable system, a package
+installed into a snapshot you haven't booted yet doesn't count as installed.
+
 [[fig-package-conflict]]
 .A conflict while installing: one of three, with zypper's solutions
 image::package-conflict.png[A package conflict dialog: "Package conflict 1 of 3", busybox-which conflicts with which, with zypper's solutions to pick from,pdfwidth=100%]

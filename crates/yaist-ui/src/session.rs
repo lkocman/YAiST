@@ -661,6 +661,17 @@ impl Jobs {
                 }
             };
         }
+        // Already in place (fish installed, SELinux enforcing): no card to
+        // confirm, only a note, and the model hears the same.
+        if self.sh.reg.has_done_check(spec.id) {
+            self.sh.busy(Some(format!("Checking {}…", spec.title)));
+            let done = self.sh.reg.check_done(self.sh.ctx.clone(), spec.id, &args).await;
+            self.sh.busy(None);
+            if let Some(why) = done {
+                self.sh.push(Entry::Notice(format!("Nothing to do: {why}. ({cmdline})")));
+                return call_id.map(|_| format!("Nothing to do: {why}. No change was made and none is needed."));
+            }
+        }
         self.plan(spec, args, cmdline, shell, call_id);
         None
     }
@@ -784,7 +795,13 @@ impl Jobs {
         // The model's tool call is answered now, so the conversation can go
         // on; the outcome reaches it as a note (see finish).
         if let Some(call) = self.call_ids.remove(&id) {
-            self.agent.push_tool_result(&call, "The user confirmed it; it is running now. You will be told how it went.");
+            // Not "it is running now": small models turned that into "fish has
+            // been installed and is now running" before the install finished.
+            self.agent.push_tool_result(
+                &call,
+                "The user confirmed it and the change has started. It has not finished yet: do not say it is done. \
+You will get a note with the outcome.",
+            );
         }
         self.running = Some((id, spec));
         self.sh.running(Some(format!("{}…", spec.title)));

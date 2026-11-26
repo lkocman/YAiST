@@ -9,6 +9,7 @@ use crate::{ActionSpec, Args, Context, Distro, Output};
 
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type Handler = Arc<dyn Fn(Arc<Context>, Args) -> BoxFuture<Result<Output>> + Send + Sync>;
+type Check = Arc<dyn Fn(Arc<Context>, Args) -> BoxFuture<Option<String>> + Send + Sync>;
 
 /// The terminal commands an action corresponds to, for teaching: shown on
 /// plan cards and results so users learn the tools underneath.
@@ -42,6 +43,7 @@ pub struct Registry {
     actions: BTreeMap<&'static str, Action>,
     order: Vec<&'static str>,
     shell: BTreeMap<&'static str, ShellFn>,
+    done: BTreeMap<&'static str, Check>,
 }
 
 impl Registry {
@@ -62,6 +64,31 @@ impl Registry {
     /// Registers the terminal equivalent of an action.
     pub fn shell(&mut self, id: &'static str, f: ShellFn) {
         self.shell.insert(id, f);
+    }
+
+    /// Registers a check for whether a change is already in place (the
+    /// package installed, SELinux already enforcing). It runs before the
+    /// change is put up for confirmation; `Some(reason)`, e.g. "fish is
+    /// already installed", means there is nothing to do. It only reads, as
+    /// the user, and must never ask for authentication. When it can't tell,
+    /// it answers `None` and the change goes ahead as usual.
+    pub fn already_done<F, Fut>(&mut self, id: &'static str, f: F)
+    where
+        F: Fn(Arc<Context>, Args) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Option<String>> + Send + 'static,
+    {
+        self.done.insert(id, Arc::new(move |ctx, args| Box::pin(f(ctx, args))));
+    }
+
+    /// Why the change `id` with `args` has nothing to do, if it hasn't.
+    pub async fn check_done(&self, ctx: Arc<Context>, id: &str, args: &Args) -> Option<String> {
+        let check = self.done.get(id)?;
+        check(ctx, args.clone()).await
+    }
+
+    /// Whether `id` has an already-done check.
+    pub fn has_done_check(&self, id: &str) -> bool {
+        self.done.contains_key(id)
     }
 
     /// The terminal commands for `id` with `args`, empty when none is known.

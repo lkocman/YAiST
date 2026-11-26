@@ -141,6 +141,23 @@ pub fn register(reg: &mut Registry) {
         Ok(Output::Done(format!("Removed {user} from {group}; it takes effect at their next login")))
     });
 
+    reg.already_done(SET_ADMIN.id, |_, args| async move {
+        let user = args.str("username");
+        human_user(user).ok()?;
+        let admin = group_members(ADMIN_GROUP).iter().any(|m| m == user);
+        (admin == args.bool("admin")).then(|| format!("{user} {} an administrator", if admin { "is already" } else { "is not" }))
+    });
+    reg.already_done(ADD_TO_GROUP.id, |_, args| async move {
+        let (user, group) = (args.str("username"), args.str("group"));
+        human_user(user).ok()?;
+        group_members(group).iter().any(|m| m == user).then(|| format!("{user} is already in {group}"))
+    });
+    reg.already_done(REMOVE_FROM_GROUP.id, |_, args| async move {
+        let (user, group) = (args.str("username"), args.str("group"));
+        (human_user(user).is_ok() && group_exists(group) && !group_members(group).iter().any(|m| m == user))
+            .then(|| format!("{user} is not a member of {group}"))
+    });
+
     reg.shell(LIST.id, |_, _| vec!["getent passwd".into(), format!("getent group {ADMIN_GROUP}")]);
     reg.shell(CREATE.id, |a, _| {
         let mut cmd = String::from("sudo useradd --create-home");

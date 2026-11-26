@@ -114,6 +114,9 @@ pub fn register(reg: &mut Registry) {
         packages::install_rpms(&ctx, HPLIP).await?;
         Ok(Output::Done("Installed HPLIP (hplip, hplip-sane)".into()))
     });
+    reg.already_done(INSTALL_HPLIP.id, |ctx, _| async move {
+        packages::rpm_installed(&ctx, HPLIP).await?.iter().all(|&i| i).then(|| "HPLIP (hplip, hplip-sane) is already installed".to_owned())
+    });
     reg.action(ADD_HP, |ctx, args| async move {
         if !hplip_installed(&ctx).await {
             packages::install_rpms(&ctx, HPLIP).await?;

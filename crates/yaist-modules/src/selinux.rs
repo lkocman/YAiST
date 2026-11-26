@@ -89,6 +89,18 @@ pub fn register(reg: &mut Registry) {
         Ok(Output::Done(format!("SELinux is now {mode} (until reboot)")))
     });
 
+    // The running value only: the one kept for after a reboot is in the
+    // policy store, readable by root alone, so a persistent change still asks.
+    reg.already_done(SET_BOOLEAN.id, |_, args| async move {
+        let name = args.str("boolean");
+        let on = boolean_value(name)?;
+        (on == args.bool("value") && !args.bool("persistent")).then(|| format!("{name} is already {}", if on { "on" } else { "off" }))
+    });
+    reg.already_done(SET_MODE.id, |_, args| async move {
+        let mode = args.str("mode");
+        (enabled() && current_mode() == mode).then(|| format!("SELinux is already {mode}"))
+    });
+
     reg.shell(BOOLEANS.id, |a, _| {
         vec![match a.opt_str("filter") {
             Some(f) => format!("getsebool -a | grep {}", sq(f)),
@@ -159,6 +171,12 @@ fn status() -> Output {
     ])
 }
 
+/// A boolean's running value; `None` when there is no such boolean.
+fn boolean_value(name: &str) -> Option<bool> {
+    let raw = std::fs::read_to_string(std::path::Path::new(SELINUXFS).join("booleans").join(name)).ok()?;
+    Some(raw.split_whitespace().next() == Some("1"))
+}
+
 fn booleans(filter: Option<&str>) -> Result<Output> {
     require_enabled()?;
     let mut t = Table::new(&[("boolean", "Boolean"), ("setting", "Value")]);
@@ -166,8 +184,7 @@ fn booleans(filter: Option<&str>) -> Result<Output> {
         std::fs::read_dir(format!("{SELINUXFS}/booleans"))?.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).collect();
     names.sort();
     for name in names.into_iter().filter(|n| filter.is_none_or(|f| n.contains(f))) {
-        let raw = std::fs::read_to_string(format!("{SELINUXFS}/booleans/{name}")).unwrap_or_default();
-        let on = raw.split_whitespace().next() == Some("1");
+        let on = boolean_value(&name).unwrap_or(false);
         t.push(vec![name, if on { "on" } else { "off" }.into()]);
     }
     Ok(Output::Table(t))

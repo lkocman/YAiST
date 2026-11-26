@@ -148,6 +148,24 @@ pub fn register(reg: &mut Registry) {
         });
     }
 
+    reg.already_done(ADD_FLATHUB.id, |ctx, _| async move {
+        flatpak::has_user_remote(&ctx, flatpak::FLATHUB).await.then(|| "Flathub is already set up for your user".to_owned())
+    });
+    for spec in [ENABLE, DISABLE] {
+        reg.already_done(spec.id, move |ctx, args| async move {
+            let alias = args.str("alias");
+            let want = spec.verb() == "enable";
+            let enabled = match args.str("kind") {
+                "rpm" => rpm_repos(&ctx).await.ok()?.into_iter().find(|r| r.alias == alias)?.enabled,
+                kind => {
+                    let user = kind == "flatpak-user";
+                    flatpak::remotes(&ctx).await.into_iter().find(|r| r.user == user && r.name == alias)?.enabled
+                }
+            };
+            (enabled == want).then(|| format!("{alias} is already {}", if want { "enabled" } else { "disabled" }))
+        });
+    }
+
     reg.shell(LIST.id, |_, _| vec!["zypper repos --uri".into()]);
     reg.shell(ADD.id, |a, _| add_cmds(a.str("url"), a.str("alias")));
     reg.shell(ADD_OBS.id, |a, d| {
