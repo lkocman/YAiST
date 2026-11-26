@@ -11,7 +11,7 @@
 [[upgrade.targets]]
 [.operation]
 ****
-Show what this system can upgrade or migrate to (newer Leap, Tumbleweed, Slowroll, SUSE Linux Enterprise, or a full upgrade on rolling releases), what each means, and which repositories it would disable.
+Show everything this system could move to: a newer Leap, but also switching to another distribution (Tumbleweed, Slowroll, SUSE Linux Enterprise), or a full upgrade on rolling releases; what each means and which repositories it would disable. To answer whether a newer release is out, use <<upgrade.latest,Latest release>> instead.
 
 *Command:* `/upgrade targets` +
 *Runs:* straight away; it only reads the system.
@@ -147,6 +147,38 @@ xdg-open https://doc.opensuse.org/release-notes/x86_64/openSUSE/Leap/VERSION/htm
 ****
 // END GENERATED
 
+=== Latest release
+
+Tells you whether you run the newest release of your openSUSE Leap, and if
+not, which one is newer. Only Leap counts: on Leap 16.1, "Am I on the
+latest version?" gets a yes, even though Tumbleweed has newer software.
+Tumbleweed and Slowroll are other openSUSE distributions, not newer Leap
+versions. The assistant mentions them only when you ask for something
+faster, or about switching (<<upgrade.targets>> lists them). Releases
+still in testing (Beta, RC) are mentioned as coming, not offered. On
+Tumbleweed and Slowroll there are no newer versions, only updates.
+
+When a newer Leap is out, the Welcome page also shows a banner with a
+button that puts up the upgrade (<<welcome-window>>).
+
+// BEGIN GENERATED upgrade.latest -- written by `yaist docs` from the module's code; edit the code, not this block
+[[upgrade.latest]]
+[.operation]
+****
+Check whether this system runs the newest release of its own line: on openSUSE Leap, whether a newer Leap version is out (and which). Use it for 'am I on the latest version', 'is there a new release', 'is Leap 16.1 out'. Tumbleweed, Slowroll and SUSE Linux Enterprise are other distributions, not newer versions, and are not part of the answer.
+
+*Command:* `/upgrade latest` +
+*Runs:* straight away; it only reads the system.
+
+.In the terminal
+[source,shell]
+----
+grep -E '^(NAME|VERSION)=' /etc/os-release
+curl -s https://get.opensuse.org/api/v0/distributions.json
+----
+****
+// END GENERATED
+
 // BEGIN GENERATED upgrade -- written by `yaist docs` from the module's code; edit the code, not this block
 [[upgrade-at-a-glance]]
 === Upgrade at a glance
@@ -156,6 +188,7 @@ xdg-open https://doc.opensuse.org/release-notes/x86_64/openSUSE/Leap/VERSION/htm
 |===
 |Operation |Command |Runs
 |<<upgrade.targets,Upgrade options>> |`/upgrade targets` |straight away
+|<<upgrade.latest,Latest release>> |`/upgrade latest` |straight away
 |<<upgrade.migrate,Upgrade>> |`/upgrade migrate TARGET` |after you confirm (hard to undo)
 |<<upgrade.to_sle,SUSE Linux Enterprise>> |`/upgrade to-sle EMAIL ••••••` |after you confirm (hard to undo)
 |<<upgrade.release_notes,What's new>> |`/upgrade release-notes VERSION` |straight away

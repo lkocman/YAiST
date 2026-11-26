@@ -153,6 +153,9 @@ pub struct State {
     pub llm: LlmStatus,
     pub llm_url: String,
     pub updates: UpdateStatus,
+    /// Where this Leap stands in its line, once get.opensuse.org answered:
+    /// a newer release puts up the new-release banner.
+    pub release: Option<yaist_modules::LatestRelease>,
     pub question: Option<Asked>,
     /// The GUI's text size (1.0 normal); `None` where the terminal decides.
     pub text_size: Option<f32>,

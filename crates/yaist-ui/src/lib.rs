@@ -20,11 +20,15 @@ pub use session::{Cmd, Session};
 pub use state::{Asked, Entry, LlmStatus, ModuleView, Panel, Plan, PlanStatus, Preview, State, UpdateStatus};
 /// What's new in a release, for [`Cmd::WhatsNew`] and its card.
 pub use yaist_modules::release_notes;
-pub use yaist_modules::{PendingUpdate, UpdatePreview};
+pub use yaist_modules::{LatestRelease, PendingUpdate, UpdatePreview};
 
 /// The action behind "Install updates": `zypper update` on Leap, `zypper dup`
 /// on rolling releases, transactional-update on immutable systems.
 pub const UPDATE_ACTION: &str = "packages.update_system";
+
+/// Upgrades and migrations; the new-release banner proposes it with
+/// `target=leap:<version>`.
+pub const MIGRATE_ACTION: &str = "upgrade.migrate";
 
 /// "Install security updates only" (Leap: zypper patch --category security).
 pub const SECURITY_ACTION: &str = "packages.install_security";
@@ -73,6 +77,30 @@ pub fn reboot_notice(u: &UpdateStatus, transactional: bool) -> Option<(String, S
 }
 
 pub const REBOOT_ACTION: &str = "system.reboot";
+
+/// The new-release banner, when a newer release of the Leap this machine
+/// runs is out and it can take it: (version, headline, detail).
+pub fn release_notice(release: Option<&yaist_modules::LatestRelease>, transactional: bool) -> Option<(String, String, String)> {
+    let l = release?;
+    let v = l.offer()?;
+    let how = if transactional {
+        "It goes into a new snapshot: the system you run stays as it is until you reboot."
+    } else {
+        "It takes a while: a snapshot is taken first, repositories that may not work there are disabled, and you reboot at the end."
+    };
+    Some((
+        v.to_owned(),
+        format!("{} {v} is available", l.line),
+        format!("A newer release of what you run: the same experience with newer software. {how}"),
+    ))
+}
+
+/// The `upgrade.migrate` arguments for moving to Leap `version`.
+pub fn migrate_args(version: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut raw = serde_json::Map::new();
+    raw.insert("target".into(), serde_json::Value::String(format!("leap:{version}")));
+    raw
+}
 
 /// Text for the update banner and badge: (level, badge, headline, detail).
 /// On transactional systems updates go into a new snapshot, and the text
