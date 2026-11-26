@@ -34,6 +34,35 @@ yaist help [module]                      # all /commands
 yaist tools                              # the tool definitions the model sees
 ```
 
+## Clean test containers
+
+To try changes as root, and migrations above all, without touching your
+machine, start a clean, throwaway container with the YAiST you built
+mounted at `/yaist` (on `PATH`):
+
+```sh
+scripts/build-in-container.sh build      # the binaries go into target/debug
+scripts/clean-leap160-container.sh       # Leap 16.0
+scripts/clean-leap161-container.sh       # Leap 16.1
+scripts/clean-tumbleweed-container.sh    # Tumbleweed
+
+# inside, as root (no pkexec needed):
+yaist run /upgrade targets
+yaist run /upgrade migrate leap:16.1 --yes
+```
+
+Each run pulls the image again and replaces an older container of the same
+name (`yaist-clean-<release>`). Options: `--update` brings the system up to
+date first (where a migration starts from), `--keep` keeps the container
+after you exit (`podman start -ai yaist-clean-leap160` gets you back in),
+`--release` mounts `target/release`, `--no-pull` uses the image you
+already have, and `-- CMD…` runs a command instead of a shell. `--gui`
+starts `yaist-gui` straight away instead, as root and drawn on your Wayland
+session (it installs the Mesa and Wayland libraries it needs first); open a
+shell next to it with `podman exec -it yaist-clean-<release> bash -l`. The
+containers have no systemd, so services, firewalld and hostname changes fail
+there. Packages, repositories and migrations work.
+
 ## Privileges
 
 Changes run with your privileges through polkit: systemd, firewalld and
