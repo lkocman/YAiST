@@ -13,7 +13,7 @@
 # name is removed first. The YAiST binaries you built (target/debug, or
 # target/release with --release) are mounted read-only at /yaist and are on
 # PATH, so inside the container `yaist run /upgrade targets` or
-# `yaist run /upgrade migrate leap 16.1 --yes` runs as root, without pkexec.
+# `yaist run /upgrade migrate leap:16.1 --yes` runs as root, without pkexec.
 # Build them first, e.g. scripts/build-in-container.sh build (Leap 16.0
 # binaries run on 16.1 and Tumbleweed as well).
 #
@@ -36,10 +36,12 @@
 # units, firewalld, hostnamed) fail in it; package, repository and migration
 # actions work.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# Resolved before the cd: $0 may be relative to where we were started.
+self=$(readlink -f "$0")
+cd "$(dirname "$self")/.."
 
 usage() {
-    sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'
+    sed -n '2,/^set -euo/p' "$self" | sed '$d; s/^# \{0,1\}//'
     exit "${1:-0}"
 }
 

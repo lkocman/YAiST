@@ -48,7 +48,7 @@ scripts/clean-tumbleweed-container.sh    # Tumbleweed
 
 # inside, as root (no pkexec needed):
 yaist run /upgrade targets
-yaist run /upgrade migrate leap 16.1 --yes
+yaist run /upgrade migrate leap:16.1 --yes
 ```
 
 Each run pulls the image again and replaces an older container of the same
