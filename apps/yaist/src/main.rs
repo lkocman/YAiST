@@ -72,11 +72,18 @@ fn cli_run(args: &[String]) -> Result<()> {
         command::Parsed::Action { spec, raw } => (spec, raw),
     };
     let args = spec.validate(&raw)?;
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    let ctx = Arc::new(Context::new());
+    if spec.risk != Risk::Read {
+        if let Some(why) = rt.block_on(reg.check_done(ctx.clone(), spec.id, &args)) {
+            println!("Nothing to do: {why}.");
+            return Ok(());
+        }
+    }
     if spec.risk != Risk::Read && !yes {
         bail!("{} is a {} action: {}\nre-run with --yes to apply", spec.id, spec.risk.label(), command::format(&spec, &args));
     }
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-    let out = rt.block_on(yaist_core::ask::asking(Arc::new(ask_on_terminal), reg.run(Arc::new(Context::new()), spec.id, args)))?;
+    let out = rt.block_on(yaist_core::ask::asking(Arc::new(ask_on_terminal), reg.run(ctx, spec.id, args)))?;
     match out {
         Output::Table(t) => {
             let widths: Vec<usize> = (0..t.columns.len())

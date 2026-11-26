@@ -661,6 +661,17 @@ impl Jobs {
                 }
             };
         }
+        // Already in place (fish installed, SELinux enforcing): no card to
+        // confirm, only a note, and the model hears the same.
+        if self.sh.reg.has_done_check(spec.id) {
+            self.sh.busy(Some(format!("Checking {}…", spec.title)));
+            let done = self.sh.reg.check_done(self.sh.ctx.clone(), spec.id, &args).await;
+            self.sh.busy(None);
+            if let Some(why) = done {
+                self.sh.push(Entry::Notice(format!("Nothing to do: {why}. ({cmdline})")));
+                return call_id.map(|_| format!("Nothing to do: {why}. No change was made and none is needed."));
+            }
+        }
         self.plan(spec, args, cmdline, shell, call_id);
         None
     }

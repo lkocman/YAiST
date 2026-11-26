@@ -92,6 +92,16 @@ client in front answers it: a dialog in the GUI, a list in the TUI,
 numbered choices with `yaist run`. With nobody to ask, the default applies.
 Questions and answers go to the change's log.
 
+**Already done**: `Registry::already_done(id, fn)` registers a check
+that runs before a change becomes a plan card. It answers why there is
+nothing to do ("fish is already installed", "SELinux is already
+enforcing"), or `None` when the change is needed or the check can't tell.
+Then the client shows *Nothing to do* instead of a card, the model gets
+that as the tool result, and `yaist run` prints it and exits successfully.
+A check only reads, as the user, and never asks polkit (so no firewalld
+calls). The handler still has to cope with the change already being in
+place, since the system can change between the check and *Confirm*.
+
 **Terminal equivalent**: `Registry::shell(id, fn)` registers the shell
 commands an action stands for. Plan cards show them, and so does the
 generated *Shell recipe* in the handbook. They are for teaching and
@@ -259,7 +269,8 @@ A new action, in its module's file under `crates/yaist-modules/src/`:
    parameters in the order a person would type them.
 2. Validators in `validate.rs` for every text that reaches a command.
 3. The handler, returning an `Output`, and if there is one, the terminal
-   equivalent with `Registry::shell`.
+   equivalent with `Registry::shell`. For a change whose effect can be
+   read without root, an already-done check with `Registry::already_done`.
 4. If root is needed: an operation in `yaist-helper` that validates its
    arguments again.
 5. `yaist docs` to regenerate the handbook's action blocks, and the prose in

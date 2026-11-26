@@ -76,6 +76,12 @@ sudo ausearch --message avc --start recent
 
 // TODO(handbook): when and why to use this, then how it looks in YAiST.
 
+When a boolean already has the value you asked for and you don't want the
+change to last past a reboot, YAiST says *Nothing to do*. With *Keep the setting
+after reboot* (the default), the plan still appears: the value kept for
+after a reboot can only be read as root, so YAiST sets it again to be sure.
+Asking for the mode SELinux is already in also gives *Nothing to do*.
+
 // BEGIN GENERATED selinux.set_boolean -- written by `yaist docs` from the module's code; edit the code, not this block
 [[selinux.set_boolean]]
 [.operation]

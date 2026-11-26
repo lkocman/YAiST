@@ -137,3 +137,15 @@ fn every_action_teaches_its_terminal_command() {
         }
     }
 }
+
+#[test]
+fn already_done_checks_belong_to_changes() {
+    let reg = yaist_modules::registry();
+    let checked: Vec<_> = reg.specs().filter(|s| reg.has_done_check(s.id)).collect();
+    for spec in &checked {
+        assert_ne!(spec.risk, Risk::Read, "{}: a read action has nothing to skip", spec.id);
+    }
+    for id in ["packages.install", "packages.remove", "selinux.set_mode", "services.enable", "system.set_hostname"] {
+        assert!(checked.iter().any(|s| s.id == id), "{id} should check whether it is already done");
+    }
+}

@@ -85,6 +85,22 @@ pub fn register(reg: &mut Registry) {
         Ok(Output::Done(format!("Network time synchronisation turned {}", if on { "on" } else { "off" })))
     });
 
+    reg.already_done(SET_HOSTNAME.id, |ctx, args| async move {
+        let name = args.str("hostname");
+        let now: String = ctx.property(HOSTNAME1, HOSTNAME1_PATH, HOSTNAME1, "StaticHostname").await.ok()?;
+        (now == name).then(|| format!("the hostname is already {name}"))
+    });
+    reg.already_done(SET_TIMEZONE.id, |ctx, args| async move {
+        let tz = args.str("timezone");
+        let now: String = ctx.property(TIMEDATE1, TIMEDATE1_PATH, TIMEDATE1, "Timezone").await.ok()?;
+        (now == tz).then(|| format!("the time zone is already {tz}"))
+    });
+    reg.already_done(SET_NTP.id, |ctx, args| async move {
+        let on = args.bool("enabled");
+        let now: bool = ctx.property(TIMEDATE1, TIMEDATE1_PATH, TIMEDATE1, "NTP").await.ok()?;
+        (now == on).then(|| format!("network time synchronisation is already {}", if on { "on" } else { "off" }))
+    });
+
     reg.shell(OVERVIEW.id, |_, _| vec!["hostnamectl".into(), "timedatectl".into()]);
     reg.shell(SET_HOSTNAME.id, |a, _| vec![format!("sudo hostnamectl set-hostname {}", sq(a.str("hostname")))]);
     reg.shell(SET_TIMEZONE.id, |a, _| vec![format!("sudo timedatectl set-timezone {}", sq(a.str("timezone")))]);
