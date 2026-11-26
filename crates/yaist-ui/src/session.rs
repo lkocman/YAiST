@@ -795,7 +795,13 @@ impl Jobs {
         // The model's tool call is answered now, so the conversation can go
         // on; the outcome reaches it as a note (see finish).
         if let Some(call) = self.call_ids.remove(&id) {
-            self.agent.push_tool_result(&call, "The user confirmed it; it is running now. You will be told how it went.");
+            // Not "it is running now": small models turned that into "fish has
+            // been installed and is now running" before the install finished.
+            self.agent.push_tool_result(
+                &call,
+                "The user confirmed it and the change has started. It has not finished yet: do not say it is done. \
+You will get a note with the outcome.",
+            );
         }
         self.running = Some((id, spec));
         self.sh.running(Some(format!("{}…", spec.title)));
