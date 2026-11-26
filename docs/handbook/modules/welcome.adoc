@@ -23,8 +23,8 @@ In this chapter you will learn:
 === The window
 
 [[fig-welcome]]
-.YAiST on openSUSE Tumbleweed
-image::welcome.png[The YAiST window: modules on the left, updates and starting points in the middle, the assistant's conversation on the right,pdfwidth=100%]
+.YAiST on openSUSE Leap 16.0, with Leap 16.1 out
+image::welcome.png[The YAiST window: modules on the left; in the middle the banner "openSUSE Leap 16.1 is available" with Upgrade to 16.1 and What's new, updates and starting points below; the assistant's conversation on the right,pdfwidth=100%]
 
 The window has three columns, as in <<fig-welcome>>:
 
@@ -37,6 +37,16 @@ The conversation:: Where you talk to the assistant, and where YAiST shows
 plans, progress and results. You can also type commands here, such as
 `/firewall overview` or `/help`, and familiar terminal commands like
 `zypper in fish` are understood too.
+
+On the Welcome page, a banner shows whether updates are waiting, with a
+button to install them. When a newer release of the openSUSE Leap you run
+is out, a green banner above it says so, for example *openSUSE Leap 16.1 is
+available*, with *Upgrade to 16.1* and *What's new*. The upgrade button
+only puts up a plan, which you confirm or cancel as usual
+(<<welcome-plans>>). YAiST asks get.opensuse.org about new releases when it
+starts and once a day after that. Without a network connection the banner
+just doesn't appear, and it doesn't appear on machines that can't run the
+new release either (Leap 16 needs an x86-64-v2 processor).
 
 [[welcome-commands]]
 === Typing commands

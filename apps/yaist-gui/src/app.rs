@@ -57,6 +57,7 @@ struct View {
     distro_info: yaist_core::Distro,
     pending: bool,
     updates: UpdateStatus,
+    release: Option<yaist_ui::LatestRelease>,
     question: Option<Asked>,
     text_size: Option<f32>,
 }
@@ -230,6 +231,7 @@ impl App {
             distro_info: s.distro.clone(),
             pending: s.pending_plan().is_some(),
             updates: s.updates.clone(),
+            release: s.release.clone(),
             question: s.question.clone(),
             text_size: s.text_size,
         }
@@ -829,6 +831,9 @@ impl App {
                 });
             });
             ui.add_space(18.0);
+            if self.release_banner(ui, v) {
+                ui.add_space(12.0);
+            }
             self.update_banner(ui, v, true);
             ui.add_space(22.0);
 
@@ -929,6 +934,41 @@ impl App {
                 self.acts.push(Act::Select(i));
             }
         }
+    }
+
+    /// The new-release banner, like the update banner: a newer Leap is out,
+    /// with the upgrade one click away (a plan card, confirmed first).
+    /// Whether it was drawn.
+    fn release_banner(&mut self, ui: &mut Ui, v: &View) -> bool {
+        let Some((version, headline, detail)) = yaist_ui::release_notice(v.release.as_ref(), v.distro_info.transactional) else { return false };
+        let t = Tokens::get(ui.ctx());
+        let frame = Frame::new().fill(t.sunken).stroke(t.hairline()).inner_margin(Margin { left: 20, right: 16, top: 18, bottom: 18 });
+        let resp = frame.show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            widgets::hud(ui, "new release", t.good);
+            ui.add_space(2.0);
+            ui.label(RichText::new(&headline).font(FontId::new(24.0, theme::display())).color(t.ink_strong));
+            ui.label(RichText::new(&detail).size(13.0).color(t.muted));
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                if widgets::button(ui, &format!("Upgrade to {version}"), Kind::Primary, 180.0).clicked() {
+                    self.acts.push(Act::Propose(yaist_ui::MIGRATE_ACTION, yaist_ui::migrate_args(&version)));
+                }
+                // Release notes exist for Leap, not for Leap Micro.
+                let leap = v.release.as_ref().is_some_and(|l| l.line == "openSUSE Leap");
+                if leap
+                    && widgets::button(ui, "What's new", Kind::Secondary, 0.0)
+                        .on_hover_text("The release notes' entries for this system, with links")
+                        .clicked()
+                {
+                    self.acts.push(Act::WhatsNew(release_notes::Target::Leap(version.clone())));
+                }
+            });
+        });
+        let r = resp.response.rect;
+        ui.painter().rect_filled(egui::Rect::from_min_size(r.min, vec2(4.0, r.height())), CornerRadius::ZERO, t.good);
+        true
     }
 
     /// The update banner: large and coloured when updates wait, a quiet line

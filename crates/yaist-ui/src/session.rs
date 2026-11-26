@@ -170,6 +170,21 @@ impl Shared {
         });
     }
 
+    /// Asks get.opensuse.org whether a newer release of this Leap is out, for
+    /// the new-release banner (headless sessions and other distributions
+    /// skip it; offline, the banner just stays away).
+    fn check_release(&self) {
+        if !self.panels {
+            return;
+        }
+        let sh = self.clone();
+        tokio::spawn(async move {
+            if let Some(Ok(l)) = yaist_modules::latest_release(&sh.ctx.distro).await {
+                sh.update(|s| s.release = Some(l));
+            }
+        });
+    }
+
     /// Lists what the system update on plan `id` would bring, onto its card:
     /// a read of the cached metadata as the user, no password.
     fn preview_update(&self, id: u64) {
@@ -325,6 +340,7 @@ impl Session {
             llm: LlmStatus::Checking,
             llm_url: llm.config.url.clone(),
             updates: UpdateStatus::Checking,
+            release: None,
             question: None,
             text_size: zoom.then(text_size::load),
         }));
@@ -370,10 +386,15 @@ impl Session {
         let jobs = Jobs { sh: sh.clone(), agent, pending: VecDeque::new(), call_ids: HashMap::new(), next_id: 1, running: None, done_tx };
         runtime.spawn(jobs.run(job_rx, done_rx));
         runtime.spawn(watch_llm(sh.clone(), llm, warm));
-        // Updates: now, then every 30 minutes.
+        // Updates: now, then every 30 minutes; newer releases once a day.
         let updates_sh = sh.clone();
         runtime.spawn(async move {
+            let mut round = 0u32;
             loop {
+                if round.is_multiple_of(48) {
+                    updates_sh.check_release();
+                }
+                round = round.wrapping_add(1);
                 updates_sh.check_updates();
                 tokio::time::sleep(Duration::from_secs(30 * 60)).await;
             }
@@ -840,6 +861,11 @@ You will get a note with the outcome.",
         self.sh.running(None);
         let (status, note) = match result {
             Ok(out) => {
+                // Migrated: the new release runs after the reboot, and the
+                // banner offering it has done its job.
+                if spec.id == crate::MIGRATE_ACTION {
+                    self.sh.update(|s| s.release = None);
+                }
                 let line = out.headline();
                 (PlanStatus::Done(line.clone()), format!("Done: {line}"))
             }
@@ -924,6 +950,7 @@ mod tests {
             llm: LlmStatus::Offline,
             llm_url: String::new(),
             updates: UpdateStatus::Checking,
+            release: None,
             question: None,
             text_size: None,
         }));

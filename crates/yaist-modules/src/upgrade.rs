@@ -56,10 +56,18 @@ const KEEP: Param = Param::text(
 .default("google-chrome")
 .check(validate::names);
 
+const LATEST: ActionSpec = ActionSpec {
+    id: "upgrade.latest",
+    title: "Latest release",
+    description: "Check whether this system runs the newest release of its own line: on openSUSE Leap, whether a newer Leap version is out (and which). Use it for 'am I on the latest version', 'is there a new release', 'is Leap 16.1 out'. Tumbleweed, Slowroll and SUSE Linux Enterprise are other distributions, not newer versions, and are not part of the answer.",
+    risk: Risk::Read,
+    params: &[],
+};
+
 const TARGETS: ActionSpec = ActionSpec {
     id: "upgrade.targets",
     title: "Upgrade options",
-    description: "Show what this system can upgrade or migrate to (newer Leap, Tumbleweed, Slowroll, SUSE Linux Enterprise, or a full upgrade on rolling releases), what each means, and which repositories it would disable.",
+    description: "Show everything this system could move to: a newer Leap, but also switching to another distribution (Tumbleweed, Slowroll, SUSE Linux Enterprise), or a full upgrade on rolling releases; what each means and which repositories it would disable. To answer whether a newer release is out, use upgrade.latest instead.",
     risk: Risk::Read,
     params: &[],
 };
@@ -94,6 +102,8 @@ pub fn register(reg: &mut Registry) {
         overview_needs_admin: false,
     });
     reg.action(TARGETS, |ctx, _| async move { targets(&ctx).await });
+    reg.action(LATEST, |ctx, _| async move { latest(&ctx.distro).await });
+    reg.shell(LATEST.id, |_, _| vec!["grep -E '^(NAME|VERSION)=' /etc/os-release".into(), format!("curl -s {RELEASES_API}")]);
     reg.action(MIGRATE, |ctx, args| async move {
         let keep: Vec<String> = args.str("keep_enabled").split_whitespace().map(str::to_owned).collect();
         migrate(&ctx, args.str("target"), &keep).await
@@ -344,6 +354,102 @@ fn phase_of(releases: &Value, key: &str, version: &str) -> Option<String> {
     matches!(state.to_ascii_lowercase().as_str(), "alpha" | "beta" | "rc").then(|| state.to_owned())
 }
 
+/// Where this system's release stands in its line ("am I on the latest
+/// Leap?"): the answer for the assistant and the new-release banner. Only
+/// the line it runs counts; Tumbleweed or Slowroll are not newer Leaps.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LatestRelease {
+    /// "openSUSE Leap", "openSUSE Leap Micro".
+    pub line: &'static str,
+    pub current: String,
+    /// The newest released version newer than the running one.
+    pub newer: Option<String>,
+    /// Newer versions not released yet: (version, phase such as Beta).
+    pub upcoming: Vec<(String, String)>,
+    /// Why this machine can't take the newer release (an old CPU).
+    pub blocked: Option<String>,
+}
+
+impl LatestRelease {
+    /// The newer release this machine can upgrade to: what the banner offers.
+    pub fn offer(&self) -> Option<&str> {
+        self.newer.as_deref().filter(|_| self.blocked.is_none())
+    }
+}
+
+/// The running release against get.opensuse.org's list for `key`.
+fn latest_of(releases: &Value, key: &str, line: &'static str, current: &str) -> LatestRelease {
+    let mut newer: Option<String> = None;
+    let mut upcoming = Vec::new();
+    for r in releases[key].as_array().into_iter().flatten() {
+        let (Some(ver), Some(state)) = (r["version"].as_str(), r["state"].as_str()) else { continue };
+        if validate::release_version(ver).is_err() || !validate::version_newer(ver, current) {
+            continue;
+        }
+        match state.to_ascii_lowercase().as_str() {
+            "stable" if newer.as_deref().is_none_or(|n| validate::version_newer(ver, n)) => newer = Some(ver.to_owned()),
+            "alpha" | "beta" | "rc" => upcoming.push((ver.to_owned(), state.to_owned())),
+            _ => {}
+        }
+    }
+    // A pre-release older than the newest stable one is history.
+    upcoming.retain(|(v, _)| newer.as_deref().is_none_or(|n| validate::version_newer(v, n)));
+    upcoming.sort_by(|a, b| if validate::version_newer(&a.0, &b.0) { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Less });
+    LatestRelease { line, current: current.to_owned(), newer, upcoming, blocked: None }
+}
+
+/// Where this Leap (or Leap Micro) stands; `None` on other distributions.
+pub async fn latest_release(d: &Distro) -> Option<Result<LatestRelease>> {
+    let (key, flavour, line) = leap_line(d)?;
+    Some(
+        async {
+            let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
+            let v: Value =
+                client.get(RELEASES_API).send().await?.error_for_status()?.json().await.map_err(|e| anyhow!("reading {RELEASES_API}: {e}"))?;
+            let mut l = latest_of(&v, key, line, &d.version);
+            l.blocked = l.newer.as_deref().and_then(|ver| cpu_blocks(flavour, ver));
+            Ok(l)
+        }
+        .await,
+    )
+}
+
+/// Leap 16 needs an x86-64-v2 processor on x86_64.
+fn cpu_blocks(flavour: &str, ver: &str) -> Option<String> {
+    let major: u32 = ver.split('.').next().and_then(|m| m.parse().ok()).unwrap_or(0);
+    (flavour == "leap" && std::env::consts::ARCH == "x86_64" && major >= 16 && !x86_64_v2()).then(|| "needs an x86-64-v2 CPU".to_owned())
+}
+
+/// The answer to "am I on the latest release?".
+async fn latest(d: &Distro) -> Result<Output> {
+    let name = if d.pretty.is_empty() { d.id.clone() } else { d.pretty.clone() };
+    let Some(result) = latest_release(d).await else {
+        let text = if d.rolling {
+            format!("{name} is a rolling release: it has no newer versions, only updates. Installing all updates keeps it the latest.")
+        } else {
+            format!("YAiST can't tell newer releases of {name} apart yet.")
+        };
+        return Ok(Output::Text(text));
+    };
+    let l = result.map_err(|e| anyhow!("could not get the release list from get.opensuse.org: {e:#}"))?;
+    let mut facts = vec![("This system".to_owned(), name.clone())];
+    // Statements, not yes or no: the same words answer "am I on the latest?"
+    // and "is there a newer one?".
+    let answer = match (&l.newer, &l.blocked) {
+        (None, _) => format!("This system runs the newest {} release. There is no newer one to upgrade to.", l.line),
+        (Some(v), None) => {
+            format!("A newer release is out: {} {v}. Upgrading to it (target leap:{v}) keeps the same experience with newer software.", l.line)
+        }
+        (Some(v), Some(why)) => format!("A newer release is out: {} {v}, but this machine can't upgrade to it ({why}).", l.line),
+    };
+    facts.push((format!("Newest {}", l.line), l.newer.clone().unwrap_or_else(|| l.current.clone())));
+    for (v, phase) in &l.upcoming {
+        facts.push(("Coming".into(), format!("{} {v} ({phase}, not released yet)", l.line)));
+    }
+    facts.push(("Answer".into(), answer));
+    Ok(Output::Facts(facts))
+}
+
 fn x86_64_v2() -> bool {
     let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default();
     let flags: Vec<&str> = cpuinfo.lines().find(|l| l.starts_with("flags")).map(|l| l.split_whitespace().collect()).unwrap_or_default();
@@ -430,9 +536,8 @@ async fn targets(ctx: &Context) -> Result<Output> {
                 if !r.is_empty() {
                     notes.push(r);
                 }
-                let major: u32 = ver.split('.').next().and_then(|m| m.parse().ok()).unwrap_or(0);
-                let status = if flavour == "leap" && arch == "x86_64" && major >= 16 && !x86_64_v2() {
-                    notes.insert(0, "needs an x86-64-v2 CPU".into());
+                let status = if let Some(why) = cpu_blocks(flavour, &ver) {
+                    notes.insert(0, why);
                     "not available".to_owned()
                 } else if state.eq_ignore_ascii_case("stable") {
                     "ready".to_owned()
@@ -465,7 +570,7 @@ async fn targets(ctx: &Context) -> Result<Output> {
             "openSUSE Tumbleweed".into(),
             "migrate".into(),
             tw.into(),
-            "Rolling release: always the latest software, updated continuously. Going back to Leap later means reinstalling.".into(),
+            "Another distribution, not a newer Leap: a rolling release with the latest software, updated continuously. Going back to Leap later means reinstalling.".into(),
             rolling_notes.clone(),
         ]);
         let sr = if arch == "x86_64" { "ready" } else { "not available" };
@@ -474,7 +579,7 @@ async fn targets(ctx: &Context) -> Result<Output> {
             "openSUSE Slowroll".into(),
             "migrate".into(),
             sr.into(),
-            "Tumbleweed with batched updates about once a month: rolling, but calmer.".into(),
+            "Another distribution, not a newer Leap: Tumbleweed with batched updates about once a month, rolling but calmer.".into(),
             rolling_notes.clone(),
         ]);
         let title = match d.version.split_once('.') {
@@ -579,8 +684,49 @@ async fn to_sle(ctx: &Context, email: &str, regcode: &str, keep: &[String]) -> R
 
 #[cfg(test)]
 mod tests {
-    use super::{phase_of, repo_fate, Fate};
+    use super::{latest_of, phase_of, repo_fate, Fate};
     use serde_json::Value;
+
+    /// The list as get.opensuse.org had it in November 2026, Tumbleweed
+    /// included: it must never count as a newer Leap.
+    fn releases() -> Value {
+        serde_json::json!({
+            "Leap": [
+                { "version": "16.1", "state": "Stable" },
+                { "version": "16.0", "state": "Stable" },
+                { "version": "15.6", "state": "EOL" },
+                { "version": "42.3", "state": "EOL" },
+            ],
+            "Tumbleweed": [{ "version": "20261125", "state": "Stable" }],
+        })
+    }
+
+    #[test]
+    fn the_newest_leap_is_the_newest_leap() {
+        let on_161 = latest_of(&releases(), "Leap", "openSUSE Leap", "16.1");
+        assert_eq!(on_161.newer, None, "16.1 is the newest; 42.3 is EOL and Tumbleweed isn't Leap");
+        assert!(on_161.upcoming.is_empty());
+        let on_160 = latest_of(&releases(), "Leap", "openSUSE Leap", "16.0");
+        assert_eq!(on_160.newer.as_deref(), Some("16.1"));
+        assert_eq!(on_160.offer(), Some("16.1"));
+        let blocked = super::LatestRelease { blocked: Some("needs an x86-64-v2 CPU".into()), ..on_160 };
+        assert_eq!(blocked.offer(), None);
+    }
+
+    #[test]
+    fn prereleases_are_coming_not_newer() {
+        let v: Value = serde_json::json!({ "Leap": [
+            { "version": "16.2", "state": "Beta" },
+            { "version": "16.1", "state": "Stable" },
+            { "version": "16.0", "state": "Stable" },
+        ]});
+        let l = latest_of(&v, "Leap", "openSUSE Leap", "16.1");
+        assert_eq!(l.newer, None);
+        assert_eq!(l.upcoming, vec![("16.2".to_owned(), "Beta".to_owned())]);
+        // Several stable ones ahead: the newest is offered.
+        let l = latest_of(&v, "Leap", "openSUSE Leap", "15.6");
+        assert_eq!(l.newer.as_deref(), Some("16.1"));
+    }
 
     #[test]
     fn prerelease_phase_from_the_release_list() {

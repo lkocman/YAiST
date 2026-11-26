@@ -23,6 +23,7 @@ mod zypper;
 
 pub use assistant::below_minimum;
 pub use packages::{update_counts, update_preview, PendingUpdate, UpdateCounts, UpdatePreview};
+pub use upgrade::{latest_release, LatestRelease};
 use yaist_core::{ModuleSpec, Registry};
 
 /// All modules, in sidebar order.

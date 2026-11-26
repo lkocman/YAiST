@@ -793,6 +793,19 @@ impl App {
         Line::from(spans)
     }
 
+    /// The new-release banner as one line, with the command that upgrades.
+    fn release_line(&self, s: &State) -> Option<Line<'static>> {
+        let t = &self.t;
+        let (version, headline, _) = yaist_ui::release_notice(s.release.as_ref(), s.distro.transactional)?;
+        Some(Line::from(vec![
+            Span::styled(" ▌", self.style(t.good)),
+            Span::styled(format!("{headline}  "), self.style(t.ink_strong).add_modifier(Modifier::BOLD)),
+            Span::styled("The same experience with newer software.", self.style(t.muted)),
+            Span::raw("  "),
+            Span::styled(format!(" /upgrade migrate leap:{version} "), Style::new().fg(c(t.invert_fg)).bg(c(t.good)).add_modifier(Modifier::BOLD)),
+        ]))
+    }
+
     fn draw_welcome(&self, f: &mut Frame, area: Rect, s: &State, cursor: &mut TableState) {
         let t = self.t;
         let d = &s.distro;
@@ -831,6 +844,9 @@ impl App {
             lines.push(Line::from(spans));
         }
         lines.push(Line::from(""));
+        if let Some(line) = self.release_line(s) {
+            lines.push(line);
+        }
         lines.push(self.update_line(s));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![Span::raw(" "), self.hud("01 / get started", t.faint), self.hud("   ↑↓ choose · enter start", t.faint)]));

@@ -25,7 +25,7 @@ from main: [HTML](https://lkocman.github.io/YAiST/) ·
 [EPUB](https://lkocman.github.io/YAiST/opensuse-handbook.epub)
 [![Handbook build](https://github.com/lkocman/YAiST/actions/workflows/handbook.yml/badge.svg?branch=main)](https://github.com/lkocman/YAiST/actions/workflows/handbook.yml)
 
-![YAiST welcome screen on openSUSE Tumbleweed: modules on the left, updates and starting points in the middle, the AI conversation on the right](docs/screenshots/welcome.png)
+![YAiST welcome screen on openSUSE Leap 16.0: modules on the left; in the middle, a banner saying openSUSE Leap 16.1 is available with Upgrade to 16.1 and What's new, and two updates waiting below it; the AI conversation on the right](docs/screenshots/welcome.png)
 
 ## Examples
 
