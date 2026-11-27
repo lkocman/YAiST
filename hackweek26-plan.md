@@ -262,18 +262,17 @@ only) / **drop**.
 These are outside this Hackweek's focus, but anyone who wants to help can
 pick one up:
 
-- [ ] **A basic openQA test.** Boot the ready-to-boot image and check that
-      YAiST works, in two layers:
-      1. *Command line, no needles:* on the serial console,
-         `assert_script_run` with `yaist run` on a few read-only actions
-         (system overview, the update check, `upgrade.latest`). These are
-         cheap and don't break when the look changes.
-      2. *GUI, a few needles:* the welcome screen appears after
-         autologin, `/help` answers in the conversation, and one panel
-         opens.
+- [ ] **A basic openQA test.** The goal is small: openQA boots the system
+      and reaches `yaist-gui` (a needle on its welcome screen). openQA makes
+      that part easy. The hard part is that YAiST isn't in the distribution,
+      so the test has to get it from somewhere:
+      - boot the ready-to-boot image, which already has YAiST, or
+      - add the `home:lkocman:YAiST` repository from OBS to a stock Leap
+        16.0 and install it during the test.
+
       Run it on a local openQA instance first (`openqa-bootstrap`, or the
-      single-instance container). Getting it onto openqa.opensuse.org comes
-      later. Write down what's needed for that.
+      single-instance container), and write down what openqa.opensuse.org
+      would need.
 
 ## Not this week
 
