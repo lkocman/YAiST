@@ -265,10 +265,12 @@ pick one up:
 - [ ] **A basic openQA test.** The goal is small: openQA boots the system
       and reaches `yaist-gui` (a needle on its welcome screen). openQA makes
       that part easy. The hard part is that YAiST isn't in the distribution,
-      so the test has to get it from somewhere:
-      - boot the ready-to-boot image, which already has YAiST, or
-      - add the `home:lkocman:YAiST` repository from OBS to a stock Leap
-        16.0 and install it during the test.
+      so the test installs it from the devel project, which for now is
+      [`home:lkocman:YAiST`](https://build.opensuse.org/project/show/home:lkocman:YAiST):
+      start from a stock Leap 16.0, add that repository, install `yaist`,
+      start `yaist-gui`, and match the welcome screen. (Booting the
+      ready-to-boot image is a shortcut, but it doesn't test the
+      installation.)
 
       Run it on a local openQA instance first (`openqa-bootstrap`, or the
       single-instance container), and write down what openqa.opensuse.org
