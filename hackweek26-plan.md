@@ -29,8 +29,8 @@ The journey this week follows:
 
 ## Every module, every day: the same checklist
 
-For each module, on Tumbleweed, Leap 16.0 and one immutable system (immutable
-Leap 16.0, or Aeon), using clean containers
+For each module, on Tumbleweed and Leap 16.0 (immutable Leap 16.0 gets its
+own half day on Thursday), using clean containers
 (`scripts/clean-container.sh`) or a VM for anything that needs systemd or real
 hardware:
 
@@ -153,37 +153,62 @@ about, prints their first document and makes an account for a family member.*
       doesn't show up" needs an answer.
 - [ ] **Users:** an account for a child or a guest, without sudo. "Admin
       rights" explained in one sentence.
-- [ ] Add, if missing: "what's taking my disk space", and wifi/Bluetooth
-      pointers (even if only to the desktop's own settings, so that YAiST
-      doesn't leave Alex with no answer).
-
-### Thursday 3 Dec: Months 1–2, when something goes wrong
-
-*An update breaks something, an app can't connect, a game won't start. Alex
-needs a way back and an explanation, not a lecture.*
-
-- [ ] **Snapshots:** "it worked yesterday" → compare and roll back, from the
-      panel and from the conversation. Test it for real in a VM: the reboot,
-      `snapper rollback`, and what Alex sees afterwards. Immutable systems
-      too.
 - [ ] **Firewall:** "my game/server/KDE Connect can't connect". Should the
       common cases (KDE Connect, Steam Remote Play, Samba) be named presets
       instead of ports? Hide zones from newcomers?
 - [ ] **SELinux:** a denial explained in plain words, with the boolean as
       the fix. Is this module for Alex at all, or should it only appear when
       a denial happens?
+- [ ] Add, if missing: "what's taking my disk space", and wifi/Bluetooth
+      pointers (even if only to the desktop's own settings, so that YAiST
+      doesn't leave Alex with no answer).
+
+### Thursday 3 Dec: Months 1–2, when something goes wrong, then immutable
+
+*An update breaks something, an app can't connect, a game won't start. Alex
+needs a way back and an explanation, not a lecture.*
+
+**Morning:**
+
+- [ ] **Snapshots:** "it worked yesterday" → compare and roll back, from the
+      panel and from the conversation. Test it for real in a VM: the reboot,
+      `snapper rollback`, and what Alex sees afterwards. Immutable systems
+      too.
 - [ ] **Problem reports:** the "report this" path, for openSUSE and for
       YAiST. Does it collect the right logs, and is it clear where the report
       goes?
 - [ ] The assistant on its bad days: a wrong tool call, no model running,
       a slow first reply. Is the panel path always there as a fallback?
 
+**Afternoon, at least 4 hours: immutable systems.** Immutable Leap 16.0
+only. Every change waits for a reboot there, and that changes how Alex
+experiences every module.
+
+- [ ] **Every module once** on immutable Leap 16.0: do the plan cards show
+      `transactional-update`, and does every change say "applies after a
+      reboot"?
+- [ ] **Changes waiting for a reboot:** after the first change, does YAiST
+      show that a new snapshot is waiting? Do several changes before one
+      reboot all land (`--continue`), and does the second change see what
+      the first one did?
+- [ ] **Apps:** Flatpak first. Is installing an RPM, which needs a reboot,
+      clearly the exception, and is that explained?
+- [ ] **Drivers, codecs and the assistant setup** on immutable: install,
+      reboot, and check that they work afterwards.
+- [ ] **When an update fails, and rollback:** a broken update, then
+      `transactional-update rollback` and snapper, from the panel and from
+      the conversation.
+- [ ] **What doesn't apply:** hide or explain the actions that make no
+      sense on a read-only root, instead of letting them fail.
+- [ ] Note the results in the scorecard's Immutable column.
+
 ### Friday 4 Dec: Month 3, upgrade and give back
 
 *Leap 16.1 is out. Alex upgrades without fear, then gets curious about the
 people behind openSUSE.*
 
-- [ ] **Upgrade:** Leap 16.0 → 16.1 for real in a VM, from the banner
+- [ ] **Upgrade:** Leap 16.0 → 16.1 for real in a VM (standard and
+      immutable), from the banner
       (merged in #26) to the first boot afterwards: the release notes, the
       snapshot before it, what to do when it fails halfway.
       Tumbleweed/Slowroll: what `dup` means and when to run it.
@@ -220,12 +245,13 @@ only) / **drop**.
 | Printers | Wed | | | | | |
 | Users | Wed | | | | | |
 | Snapshots | Thu | | | | | |
-| Firewall | Thu | | | | | |
-| SELinux | Thu | | | | | |
+| Firewall | Wed | | | | | |
+| SELinux | Wed | | | | | |
 | Problem reports | Thu | | | | | |
 | Upgrade | Fri | | | | | |
 | Community | Fri | | | | | |
 | Ready-to-boot image | Tue (weekend) | | | | | |
+| Immutable, half a day | Thu | – | – | | | |
 | ~~Services~~ | | | | | drop | #28 |
 
 ## Not this week
