@@ -141,12 +141,12 @@ they did, and parsing it gives back the same arguments.
 
 Lines that start with a known tool, with or without `/` or `sudo`, are
 translated to the matching `/command` (`command::translate`): `zypper`,
-`systemctl`, `snapper`, `firewall-cmd`, `hostnamectl`, `timedatectl`,
+`snapper`, `firewall-cmd`, `hostnamectl`, `timedatectl`,
 `setsebool`, `getsebool`, `sestatus`, `setenforce`, `useradd`, `userdel`.
 
 ```
 zypper in fish                 →  /packages install fish
-sudo systemctl enable --now sshd → /services enable sshd now=yes
+snapper create -d 'before tests' → /snapshots create "before tests"
 firewall-cmd --add-port=8080/tcp →  /firewall open-port 8080 tcp
 ```
 

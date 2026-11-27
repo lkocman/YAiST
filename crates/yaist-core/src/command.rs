@@ -85,22 +85,10 @@ pub fn format(spec: &ActionSpec, args: &Args) -> String {
 
 /// Tools whose familiar commands YAiST understands, so users can type what
 /// they know (or are learning) and still get a plan card.
-const TOOLS: &[&str] = &[
-    "zypper",
-    "systemctl",
-    "snapper",
-    "firewall-cmd",
-    "hostnamectl",
-    "timedatectl",
-    "setsebool",
-    "getsebool",
-    "sestatus",
-    "setenforce",
-    "useradd",
-    "userdel",
-];
+const TOOLS: &[&str] =
+    &["zypper", "snapper", "firewall-cmd", "hostnamectl", "timedatectl", "setsebool", "getsebool", "sestatus", "setenforce", "useradd", "userdel"];
 
-/// `zypper in fish`, `sudo systemctl restart sshd`, `/snapper list`…
+/// `zypper in fish`, `sudo snapper create`, `/snapper list`…
 pub fn is_tool_command(line: &str) -> bool {
     let mut words = line.trim().trim_start_matches('/').split_whitespace();
     let first = match words.next() {
@@ -198,20 +186,6 @@ pub fn translate(line: &str) -> Result<String> {
             }
             "mr" | "modifyrepo" if has(&["-e", "--enable"]) => format!("/repos enable {}", q(args.first().copied().unwrap_or(""))),
             "mr" | "modifyrepo" if has(&["-d", "--disable"]) => format!("/repos disable {}", q(args.first().copied().unwrap_or(""))),
-            _ => return Err(unknown()),
-        },
-        "systemctl" => match cmd {
-            "" | "list-units" if has(&["--failed"]) || rest.contains(&"--state=failed") => "/services list state=failed".into(),
-            "" | "list-units" => "/services list state=running".into(),
-            "--failed" => "/services list state=failed".into(),
-            "status" | "start" | "stop" | "restart" => {
-                need(1, "a service")?;
-                format!("/services {cmd} {}", q(args[0]))
-            }
-            "enable" | "disable" => {
-                need(1, "a service")?;
-                format!("/services {cmd} {} now={}", q(args[0]), if has(&["--now"]) { "yes" } else { "no" })
-            }
             _ => return Err(unknown()),
         },
         "snapper" => match cmd {
@@ -524,9 +498,6 @@ mod tests {
             ("zypper up", "/packages update-system"),
             ("zypper ar https://example.org/repo games", "/repos add https://example.org/repo games"),
             ("zypper mr -d games", "/repos disable games"),
-            ("systemctl restart sshd", "/services restart sshd"),
-            ("systemctl enable --now sshd", "/services enable sshd now=yes"),
-            ("systemctl --failed", "/services list state=failed"),
             ("snapper create -d 'before tests'", "/snapshots create \"before tests\""),
             ("snapper status 42..0", "/snapshots changes 42"),
             ("firewall-cmd --zone=public --add-port=8080/tcp --permanent", "/firewall open-port 8080 tcp zone=public"),

@@ -163,7 +163,7 @@ pub fn start_items(d: &Distro) -> Vec<StartItem> {
 
 /// Requests to try in the conversation.
 pub fn suggestions(d: &Distro) -> Vec<&'static str> {
-    let mut s = vec!["Is my system up to date?", "Set up Steam", "Which services failed?", "Install VLC", "Open port 8080 for my dev server"];
+    let mut s = vec!["Is my system up to date?", "Set up Steam", "Install VLC", "Open port 8080 for my dev server"];
     s.push(if d.id == "opensuse-leap" { "Upgrade to the next Leap" } else { "Take a snapshot before I update" });
     s.push("zypper in fish");
     s
@@ -185,7 +185,6 @@ pub fn prompts(module: &str, d: &Distro) -> Vec<&'static str> {
         ],
         "upgrade" if leap => vec!["Is there a newer Leap?", "Upgrade to the next Leap", "Switch to Tumbleweed", "Move to SUSE Linux Enterprise"],
         "upgrade" => vec!["Where can I upgrade to?", "Update the system"],
-        "services" => vec!["Which services failed?", "Is sshd running?", "Restart the printing service", "Which services start at boot?"],
         "firewall" => vec!["Open port 8080 for my dev server", "Allow SSH through the firewall", "Which ports are open?", "What else can I allow?"],
         "users" => vec!["Who has an account here?", "Who can use sudo?", "Let my nephew tom log in, without sudo", "Which groups am I in?"],
         "selinux" => vec![

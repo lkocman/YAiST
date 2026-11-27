@@ -16,8 +16,8 @@ In this chapter you will learn:
 
 .Before you start
 * firewalld running, as it is on a default openSUSE installation.
-  `systemctl status firewalld` shows it; the <<services>> chapter shows how
-  to start it.
+  `systemctl status firewalld` shows it; `sudo systemctl enable --now
+  firewalld` starts it.
 * The administrator password. firewalld asks for it even to show its rules,
   so the Firewall panel waits until you press *Show Firewall*.
 

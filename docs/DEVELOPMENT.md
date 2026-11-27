@@ -161,7 +161,7 @@ and EPUB to published releases.
 
 ```
 crates/yaist-core      action model: specs, validation, /command syntax, registry
-crates/yaist-modules   system, users, services, firewall, selinux, packages, repos, …
+crates/yaist-modules   system, users, firewall, selinux, packages, repos, …
 crates/yaist-agent     llama-server client and tool-calling agent
 crates/yaist-ui        shared client model (state, plans, forms, palette, demos)
 apps/yaist             TUI + CLI

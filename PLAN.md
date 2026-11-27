@@ -98,7 +98,7 @@ one appears in the other.
 │ Modules        │ Firewall · zone: public                               │
 │ ▸ System       │ ┌ Open ports ────────────┐ ┌ Services ─────────────┐ │
 │   Users        │ │ 22/tcp   ssh       [x] │ │ ssh            [x]    │ │
-│   Services     │ │ 8080/tcp           [x] │ │ http           [ ]    │ │
+│   Snapshots    │ │ 8080/tcp           [x] │ │ http           [ ]    │ │
 │ ▸ Firewall     │ │ [+ Open port]          │ │ [+ Allow service]     │ │
 │   SELinux      │ └────────────────────────┘ └───────────────────────┘ │
 │   Packages     ├───────────────────────────────────────────────────────┤
@@ -260,7 +260,7 @@ Re-check newest releases at selection time; pick by eval results, not by vibes.
 crates/
   yaist-core     action registry, schemas, risk levels, plan/diff types
   yaistd         privileged daemon, D-Bus service, polkit, snapper, audit log
-  yaist-modules  system, users, services, firewall, selinux, packages, repos, migration
+  yaist-modules  system, users, firewall, selinux, packages, repos, migration
   yaist-agent    prompt resolver: /command parser + LLM loop (llama-server client)
   yaist-ui       shared client view model (modules, panels, plan cards, conversation)
   yaist-tui      ratatui client
@@ -288,7 +288,7 @@ eval/            prompt → expected action dataset + latency benchmark
 7. **Nice to have: containers** (à la Cockpit) — Podman via its libpod REST
    API. Rootless containers go through the user's own podman socket, so no
    yaistd/root involvement; rootful ones through yaistd. Manage them as
-   Quadlet units so they reuse the Services module (start/stop/enable/logs).
+   Quadlet units (start/stop/enable/logs through systemd).
 
 ## Open questions
 

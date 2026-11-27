@@ -18,7 +18,7 @@ use yaist_core::{ActionSpec, Context, ModuleSpec, Output, Registry, Risk, Table}
 use zbus::OwnedVariant;
 
 use crate::media::{self, Vendor};
-use crate::{helper, packages, services};
+use crate::{helper, packages, systemd};
 
 const RUNTIME: &[&str] = &["llamacpp", "libggml-vulkan"];
 const SWITCHEROO: &str = "switcheroo-control";
@@ -287,7 +287,7 @@ async fn set_up(ctx: &Context) -> Result<Output> {
             // In the new snapshot; the preset enables it there.
             reboot = true;
         } else {
-            services::enable(ctx, SWITCHEROO_UNIT, true).await?;
+            systemd::enable(ctx, SWITCHEROO_UNIT, true).await?;
             done.push(format!("started {SWITCHEROO}"));
         }
     }
