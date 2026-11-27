@@ -3,7 +3,7 @@
 
 YAiST is a system tool for openSUSE. It brings the everyday jobs of
 looking after a computer into one window: software, users, the firewall,
-services, snapshots, printers and upgrades to the next release. It is
+snapshots, printers and upgrades to the next release. It is
 built to teach as much as to do: every change shows the commands it
 stands for.
 
@@ -30,7 +30,7 @@ The window has three columns, as in <<fig-welcome>>:
 
 The sidebar:: One entry, or *module*, for each part of the system. Each
 chapter of this handbook covers one module, under the same name.
-The panel:: What the selected module shows: a table of users, services or
+The panel:: What the selected module shows: a table of users, snapshots or
 firewall rules, with buttons for what you can do. Buttons on a row act on
 that row.
 The conversation:: Where you talk to the assistant, and where YAiST shows
@@ -52,11 +52,11 @@ new release either (Leap 16 needs an x86-64-v2 processor).
 === Typing commands
 
 A command starts with `/`, then the module and what to do, such as
-`/services restart sshd`. `/help` lists the modules, and `/help services`
-lists what the Services module can do.
+`/firewall open-port 8080`. `/help` lists the modules, and `/help firewall`
+lists what the Firewall module can do.
 
 You don't have to remember them: press kbd:[Tab] while typing a command, as
-in a terminal. `/se` and kbd:[Tab] gives `/services`, or as much as all
+in a terminal. `/fi` and kbd:[Tab] gives `/firewall`, or as much as all
 matching commands share. When kbd:[Tab] can add nothing more, it lists what
 can come next (<<fig-completion>>). Press kbd:[Tab] again to go through
 them and kbd:[Shift+Tab] to go back, or click one in the desktop window.
@@ -68,8 +68,8 @@ On anything that isn't a command, kbd:[Tab] moves to the next part of the
 window, as usual.
 
 [[fig-completion]]
-.kbd:[Tab] lists what can follow `/services`
-image::completion.png[The conversation input with /services enable typed; above it the possible actions disable, enable, list, restart, start, status and stop, with enable picked,pdfwidth=100%]
+.kbd:[Tab] lists what can follow `/firewall`
+image::completion.png[The conversation input with /firewall open-port typed; above it the possible actions allow-service, available-services, open-port, overview and remove, with open-port picked,pdfwidth=100%]
 
 To make the text bigger, for screen sharing or reading comfort, use the
 *A-* and *A+* buttons in the header, kbd:[Ctrl+Plus] and kbd:[Ctrl+Minus],

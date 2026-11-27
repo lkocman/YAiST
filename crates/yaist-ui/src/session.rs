@@ -613,7 +613,7 @@ impl Jobs {
             self.demo(name.trim());
             return;
         }
-        // Familiar tool commands (zypper in fish, systemctl restart sshd) are
+        // Familiar tool commands (zypper in fish, snapper list) are
         // commands too, with or without the slash.
         if text.starts_with('/') || command::is_tool_command(text) {
             self.sh.push(Entry::Command(text.to_owned()));

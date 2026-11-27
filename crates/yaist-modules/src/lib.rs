@@ -14,9 +14,9 @@ pub mod release_notes;
 pub mod report;
 mod repos;
 mod selinux;
-mod services;
 mod snapshots;
 mod system;
+mod systemd;
 mod upgrade;
 mod users;
 mod zypper;
@@ -42,7 +42,6 @@ pub fn registry() -> Registry {
     report::register(&mut reg);
     system::register(&mut reg);
     users::register(&mut reg);
-    services::register(&mut reg);
     firewall::register(&mut reg);
     selinux::register(&mut reg);
     packages::register(&mut reg);

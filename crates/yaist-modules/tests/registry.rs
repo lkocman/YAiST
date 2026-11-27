@@ -145,7 +145,7 @@ fn already_done_checks_belong_to_changes() {
     for spec in &checked {
         assert_ne!(spec.risk, Risk::Read, "{}: a read action has nothing to skip", spec.id);
     }
-    for id in ["packages.install", "packages.remove", "selinux.set_mode", "services.enable", "system.set_hostname"] {
+    for id in ["packages.install", "packages.remove", "selinux.set_mode", "system.set_hostname"] {
         assert!(checked.iter().any(|s| s.id == id), "{id} should check whether it is already done");
     }
 }

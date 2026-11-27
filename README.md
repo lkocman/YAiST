@@ -62,7 +62,7 @@ YAiST opens on a **welcome screen** that takes over from openSUSE-welcome:
 starting points (updates, snapshot, software, users, firewall, new releases),
 questions to try, the system at a glance and links into the community.
 
-System (hostname, time zone, NTP), Users, Services (systemd), Firewall
+System (hostname, time zone, NTP), Users, Firewall
 (firewalld), SELinux, Packages and Repositories (zypper, OBS community
 repositories and Flatpak remotes), Gaming & media (Steam, graphics drivers,
 SELinux gaming policy, codecs), Printers (CUPS, driverless IPP, HP devices

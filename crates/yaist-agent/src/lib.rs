@@ -179,7 +179,6 @@ Rules:
 Examples:
 User: let my nephew tom log in, but without sudo -> call users__create with username=tom, admin=false
 User: open port 8080 for my dev server -> call firewall__open_port with port=8080
-User: is nginx running? -> call services__status with unit=nginx, then answer
 User: update the system -> call packages__update_system
 User: can you uninstall fish -> call packages__remove with packages=fish
 User: uninstall bash -> say other packages that need bash may be removed too, then call packages__remove with packages=bash
@@ -191,7 +190,6 @@ User: upgrade to the next Leap -> call upgrade__latest; if it names a newer vers
 User: I want newer software faster than Leap -> call upgrade__targets, then say Tumbleweed (daily updates) and Slowroll (monthly batches) are the rolling openSUSE distributions
 User: switch to Tumbleweed -> call upgrade__migrate with target=tumbleweed
 User: take a snapshot before I start -> call snapshots__create with a short description
-User: why did my service fail? -> call services__list with state=failed, then services__status for the failed one, then explain
 User: allow the web server to make network connections -> call selinux__set_boolean with boolean=httpd_can_network_connect, value=true
 User: report this, the update keeps failing -> ask what they expected, then call community__report_problem with target=opensuse for a broken package or target=yaist when YAiST got it wrong"
     )

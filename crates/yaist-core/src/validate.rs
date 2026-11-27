@@ -22,13 +22,6 @@ pub fn full_name(s: &str) -> R {
     Ok(())
 }
 
-pub fn unit_name(s: &str) -> R {
-    if s.is_empty() || s.len() > 255 || s.starts_with('-') || !chars_ok(s, ":_.@-\\") {
-        return Err("not a valid systemd unit name".into());
-    }
-    Ok(())
-}
-
 /// A port or range: `8080` or `60000-61000`.
 pub fn port(s: &str) -> R {
     let ok = |p: &str| p.parse::<u16>().is_ok_and(|n| n > 0);
@@ -195,15 +188,12 @@ mod tests {
     fn rejects_option_injection() {
         assert!(username("-oops").is_err());
         assert!(packages("vim --force").is_err());
-        assert!(unit_name("--now").is_err());
         assert!(name("-x").is_err());
     }
 
     #[test]
     fn accepts_common_values() {
         assert!(username("alice").is_ok());
-        assert!(unit_name("sshd.service").is_ok());
-        assert!(unit_name("getty@tty1.service").is_ok());
         assert!(firewall_rule("8080/tcp").is_ok());
         assert!(firewall_rule("ssh").is_ok());
         assert!(port("60000-61000").is_ok());

@@ -44,7 +44,6 @@ include::modules/selinux.adoc[]
 
 = Keeping the system healthy
 
-include::modules/services.adoc[]
 
 include::modules/snapshots.adoc[]
 
