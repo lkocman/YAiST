@@ -111,6 +111,8 @@ and `/commands` work and the conversation says how to start it.
   the `/command` language, completion, tool calls and privileged
   operations, as an interface for other front ends
 - [PLAN.md](PLAN.md): the design
+- [hackweek26-plan.md](hackweek26-plan.md): the Hackweek 26 plan (30 Nov –
+  4 Dec 2026): every module again, for a newcomer's first three months
 - [docs/LICENSING.md](docs/LICENSING.md): licensing
 
 ## License
