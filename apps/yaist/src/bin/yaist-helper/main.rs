@@ -10,7 +10,7 @@
 //!   yaist-helper snapper-status <number>
 //!   yaist-helper snapper-delete <number>
 //!   yaist-helper snapper-rollback <number>
-//!   yaist-helper migrate-leap leap|leap-micro <version> [repo-alias-to-disable…]
+//!   yaist-helper migrate-leap <version> [repo-alias-to-disable…]
 //!   yaist-helper nvidia-setup leap|tumbleweed
 //!   yaist-helper codecs-packman
 //!   yaist-helper migrate-rolling tumbleweed|slowroll [repo-alias-to-disable…]
@@ -62,7 +62,7 @@ fn run(args: &[String]) -> R {
                 snapper(&["rollback", n])
             }
         }
-        Some("migrate-leap") => verdict::judge(migrate_leap(arg(1)?, arg(2)?, &args[3..])),
+        Some("migrate-leap") => verdict::judge(migrate_leap(arg(1)?, &args[2..])),
         Some("nvidia-setup") => nvidia_setup(arg(1)?),
         Some("codecs-packman") => codecs_packman(),
         Some("migrate-rolling") => verdict::judge(migrate_rolling(arg(1)?, &args[2..])),
@@ -443,25 +443,21 @@ fn ensure_release(tx: bool, global: &[&str], pkg: &str, downgrade: bool, expect_
 fn transactional() -> bool {
     os_release("VARIANT_ID") == "transactional"
         || os_release("ID_LIKE").split_whitespace().any(|l| l == "opensuse-microos")
-        || ["opensuse-microos", "opensuse-aeon", "opensuse-kalpa", "opensuse-leap-micro"].contains(&os_release("ID").as_str())
+        || ["opensuse-microos", "opensuse-aeon", "opensuse-kalpa"].contains(&os_release("ID").as_str())
         || (Path::new("/usr/sbin/transactional-update").exists() && root_read_only())
 }
 
-/// Upgrades Leap (or Leap Micro) to a newer release, the way
+/// Upgrades Leap (standard or immutable) to a newer release, the way
 /// opensuse-migration-tool does: the repository definitions come from the
 /// *target* release's openSUSE-repos package, then
 /// `zypper --releasever <target> dup`. On transactional systems every step runs
 /// inside one chain of snapshots (`transactional-update --continue run`), which
 /// becomes active after a reboot.
-fn migrate_leap(flavour: &str, target: &str, disable: &[String]) -> R {
+fn migrate_leap(target: &str, disable: &[String]) -> R {
     validate::release_version(target)?;
-    let (id, repos_pkg) = match flavour {
-        "leap" => ("opensuse-leap", "openSUSE-repos-Leap"),
-        "leap-micro" => ("opensuse-leap-micro", "openSUSE-repos-LeapMicro"),
-        _ => return Err(format!("unknown Leap flavour {flavour}")),
-    };
-    if os_release("ID") != id {
-        return Err(format!("this system is not {id}"));
+    let repos_pkg = "openSUSE-repos-Leap";
+    if os_release("ID") != "opensuse-leap" {
+        return Err("this system is not openSUSE Leap".into());
     }
     let current = os_release("VERSION_ID");
     // The same version again continues an upgrade that stopped after the
@@ -471,16 +467,10 @@ fn migrate_leap(flavour: &str, target: &str, disable: &[String]) -> R {
         return Err(format!("{target} is not newer than the installed {current}"));
     }
     let major: u32 = target.split('.').next().and_then(|m| m.parse().ok()).unwrap_or(0);
-    if flavour == "leap" && std::env::consts::ARCH == "x86_64" && major >= 16 && !x86_64_v2() {
+    if std::env::consts::ARCH == "x86_64" && major >= 16 && !x86_64_v2() {
         return Err(format!("Leap {target} needs an x86-64-v2 CPU; see https://en.opensuse.org/openSUSE:X86-64-Architecture-Levels"));
     }
-    let url = match flavour {
-        "leap" => format!("https://download.opensuse.org/distribution/leap/{target}/repo/oss"),
-        _ => format!(
-            "https://download.opensuse.org/distribution/leap-micro/{target}/product/repo/openSUSE-Leap-Micro-{target}-{}/",
-            std::env::consts::ARCH
-        ),
-    };
+    let url = format!("https://download.opensuse.org/distribution/leap/{target}/repo/oss");
 
     let tx = transactional();
     snapshot_before(tx, &format!("before upgrading to {target}"), continuing)?;
@@ -512,13 +502,11 @@ fn migrate_leap(flavour: &str, target: &str, disable: &[String]) -> R {
     let (global, flags) = (["--releasever", target], ["--force-resolution", "--allow-vendor-change"]);
     let [download, install] = dup_steps(&global, &flags);
     step(&download)?;
-    install_step(tx, &install, check(tx, &global, &flags, Some(id), Some(target)))?;
-    if flavour == "leap" {
-        // Leap 16 is Leap-release; Leap 15 was openSUSE-release.
-        let pkg = if major >= 16 { "Leap-release" } else { "openSUSE-release" };
-        if let Err(e) = ensure_release(tx, &global, pkg, false, "opensuse-leap") {
-            verdict::warn(&format!("making sure {pkg} is installed failed: {e}"));
-        }
+    install_step(tx, &install, check(tx, &global, &flags, Some("opensuse-leap"), Some(target)))?;
+    // Leap 16 is Leap-release; Leap 15 was openSUSE-release.
+    let pkg = if major >= 16 { "Leap-release" } else { "openSUSE-release" };
+    if let Err(e) = ensure_release(tx, &global, pkg, false, "opensuse-leap") {
+        verdict::warn(&format!("making sure {pkg} is installed failed: {e}"));
     }
     println!("==> upgraded to {target}; reboot to finish");
     Ok(())

@@ -180,13 +180,11 @@ fn link(base: &str, params: &[(&str, &str)]) -> Url {
 /// Distribution" with its version (triage moves packages inherited from
 /// SLE); Tumbleweed and MicroOS (component MicroOS) under "openSUSE
 /// Tumbleweed", version Current, and Slowroll there as version Slowroll;
-/// Aeon, Kalpa and Leap Micro under their own products.
+/// Aeon and Kalpa under their own products.
 fn bugzilla_product(d: &Distro) -> (String, Option<String>, Option<String>) {
     let is = |id: &str| d.id == id;
     if is("opensuse-leap") {
         ("openSUSE Distribution".into(), Some(format!("Leap {}", d.version)), None)
-    } else if is("opensuse-leap-micro") {
-        ("openSUSE Leap Micro".into(), Some(d.version.clone()), None)
     } else if is("opensuse-aeon") {
         ("openSUSE Aeon".into(), Some("Current".into()), None)
     } else if is("opensuse-kalpa") {
@@ -301,7 +299,6 @@ mod tests {
         assert_eq!(bugzilla_product(&distro("opensuse-microos", "", "")).2.as_deref(), Some("MicroOS"));
         assert_eq!(bugzilla_product(&distro("opensuse-aeon", "", "")).0, "openSUSE Aeon");
         assert_eq!(bugzilla_product(&distro("opensuse-kalpa", "", "")), ("openSUSE Kalpa".into(), Some("Current".into()), None));
-        assert_eq!(bugzilla_product(&distro("opensuse-leap-micro", "6.2", "")), ("openSUSE Leap Micro".into(), Some("6.2".into()), None));
     }
 
     #[test]

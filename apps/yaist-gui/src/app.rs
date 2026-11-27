@@ -955,12 +955,9 @@ impl App {
                 if widgets::button(ui, &format!("Upgrade to {version}"), Kind::Primary, 180.0).clicked() {
                     self.acts.push(Act::Propose(yaist_ui::MIGRATE_ACTION, yaist_ui::migrate_args(&version)));
                 }
-                // Release notes exist for Leap, not for Leap Micro.
-                let leap = v.release.as_ref().is_some_and(|l| l.line == "openSUSE Leap");
-                if leap
-                    && widgets::button(ui, "What's new", Kind::Secondary, 0.0)
-                        .on_hover_text("The release notes' entries for this system, with links")
-                        .clicked()
+                if widgets::button(ui, "What's new", Kind::Secondary, 0.0)
+                    .on_hover_text("The release notes' entries for this system, with links")
+                    .clicked()
                 {
                     self.acts.push(Act::WhatsNew(release_notes::Target::Leap(version.clone())));
                 }

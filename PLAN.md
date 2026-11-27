@@ -5,7 +5,7 @@ talking to an agent, or through classic panels/forms. Native TUI and GUI, no web
 app. The LLM runs locally and must be an open-source (OSI-licensed) model.
 
 **Targets: every openSUSE distribution** — Leap, Tumbleweed, Slowroll and the
-immutable variants (MicroOS, Aeon, Kalpa, Leap Micro). Actions detect the
+immutable variants (immutable Leap, MicroOS, Aeon, Kalpa). Actions detect the
 flavour (`/etc/os-release`, read-only root + `transactional-update`) and adapt:
 `zypper up` vs `zypper dup` vs `transactional-update`, OBS repository paths.
 

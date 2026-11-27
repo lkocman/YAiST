@@ -33,6 +33,6 @@ body:
         - All of them
         - Leap
         - Tumbleweed / Slowroll
-        - Immutable (Leap Micro, Aeon, Kalpa)
+        - Immutable (immutable Leap, Aeon, Kalpa)
     validations:
       required: false

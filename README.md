@@ -9,7 +9,7 @@ asking in plain language, by typing `/commands`, or in classic panels. All
 three run the same actions, and every change waits for your confirmation.
 
 - Runs on any openSUSE: Leap, Tumbleweed, Slowroll and the immutable variants
-  (immutable Leap, Leap Micro, MicroOS, Aeon, Kalpa). Updates use `zypper up`,
+  (immutable Leap, MicroOS, Aeon, Kalpa). Updates use `zypper up`,
   `zypper dup` or `transactional-update --continue` as fits; on immutable
   systems every change lands in one new snapshot, and YAiST shows when a
   reboot is needed to use it.
