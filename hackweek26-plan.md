@@ -135,6 +135,9 @@ installing anything on their own machine.*
          copied.
       6. The same thing with `virt-install`, for people who prefer a
          single command.
+- [ ] **Ready for openQA:** the same qcow2 is the disk image for the openQA
+      test on Friday, so keep it bootable without help (no prompts on first
+      boot) and give it a serial console.
 - [ ] Decide: what the image says on first boot. It's a demo, so it should
       say what YAiST is and that changes only happen inside the VM.
 
@@ -223,6 +226,18 @@ people behind openSUSE.*
       openSUSE for 90 days")?
 - [ ] **Image:** publish the ready-to-boot image with its virt-manager
       instructions, and boot it once on a machine that hasn't seen YAiST.
+- [ ] **A basic openQA test:** boot the ready-to-boot image and check that
+      YAiST works, in two layers:
+      1. *Command line, no needles:* on the serial console,
+         `assert_script_run` with `yaist run` on a few read-only actions
+         (system overview, the update check, `upgrade.latest`). These are
+         cheap and don't break when the look changes.
+      2. *GUI, a few needles:* the welcome screen appears after
+         autologin, `/help` answers in the conversation, and one panel
+         opens.
+      Run it on a local openQA instance first (`openqa-bootstrap`, or the
+      single-instance container). Getting it onto openqa.opensuse.org comes
+      later. Write down what's needed for that.
 - [ ] Redo the weekend's cold run. Compare with the baseline: time to set
       up, number of places stuck.
 - [ ] Wrap-up: regenerate the screenshots (`scripts/screenshots.sh`), update
@@ -251,6 +266,7 @@ only) / **drop**.
 | Upgrade | Fri | | | | | |
 | Community | Fri | | | | | |
 | Ready-to-boot image | Tue (weekend) | | | | | |
+| openQA, basic test | Fri | – | | | | |
 | Immutable, half a day | Thu | – | – | | | |
 | ~~Services~~ | | | | | drop | #28 |
 
