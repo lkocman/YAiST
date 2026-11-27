@@ -29,8 +29,8 @@ The journey this week follows:
 
 ## Every module, every day: the same checklist
 
-For each module, on Tumbleweed, Leap 16.0 and one immutable system (Aeon, or
-Leap Micro for the server side), using clean containers
+For each module, on Tumbleweed, Leap 16.0 and one immutable system (immutable
+Leap 16.0, or Aeon), using clean containers
 (`scripts/clean-container.sh`) or a VM for anything that needs systemd or real
 hardware:
 
@@ -57,7 +57,7 @@ before/after screenshots, a branch and a pull request.
 ### Weekend (28–29 Nov): groundwork, and Tuesday's image
 
 - [ ] Set up the test machines: a Tumbleweed VM, a Leap 16.0 VM (16.1 is
-      out, so the upgrade path is real) and an Aeon VM. Snapshot each one
+      out, so the upgrade path is real) and an immutable Leap 16.0 VM. Snapshot each one
       fresh after install, so that every day starts from a clean first boot.
 - [ ] Do a cold run as Alex: install, log in, open YAiST, and give yourself
       30 minutes to "get set up". Note every place you got stuck. This is the
