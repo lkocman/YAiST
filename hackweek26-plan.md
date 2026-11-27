@@ -102,8 +102,9 @@ installing anything on their own machine.*
 
 - [ ] **Base it on our OEM image** and build it with KIWI on OBS, in
       `home:lkocman:YAiST` next to the `yaist` and `yaist-offline` packages,
-      so that it rebuilds when they change. Start from one flavour
-      (Tumbleweed or Leap 16.0, with one desktop) and add more later. The
+      so that it rebuilds when they change. Start from Leap 16.0 with
+      one desktop: 16.1 is out, so the demo shows the banner for the newer
+      Leap and the upgrade path for real. Other flavours can come later. The
       output is a qcow2 file for VMs; because it's an OEM image, the same
       build can later go on a USB stick too.
 - [ ] **Boot right into it:** log a demo user in automatically and open
