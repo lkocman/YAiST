@@ -29,7 +29,7 @@ The journey this week follows:
 
 ## Every module, every day: the same checklist
 
-For each module, on Tumbleweed and Leap 16.0 (immutable Leap 16.0 gets its
+For each module, on Tumbleweed and Leap 16.0 (immutable Leap 16.1 gets its
 own half day on Thursday), using clean containers
 (`scripts/clean-container.sh`) or a VM for anything that needs systemd or real
 hardware:
@@ -57,8 +57,9 @@ before/after screenshots, a branch and a pull request.
 ### Weekend (28–29 Nov): groundwork, and Tuesday's image
 
 - [ ] Set up the test machines: a Tumbleweed VM, a Leap 16.0 VM (16.1 is
-      out, so the upgrade path is real) and an immutable Leap 16.0 VM. Snapshot each one
-      fresh after install, so that every day starts from a clean first boot.
+      out, so the upgrade path is real) and an immutable Leap 16.1 VM.
+      Snapshot each one fresh after install, so that every day starts from a
+      clean first boot.
 - [ ] Do a cold run as Alex: install, log in, open YAiST, and give yourself
       30 minutes to "get set up". Note every place you got stuck. This is the
       baseline for Friday.
@@ -175,19 +176,19 @@ needs a way back and an explanation, not a lecture.*
 
 - [ ] **Snapshots:** "it worked yesterday" → compare and roll back, from the
       panel and from the conversation. Test it for real in a VM: the reboot,
-      `snapper rollback`, and what Alex sees afterwards. Immutable systems
-      too.
+      `snapper rollback`, and what Alex sees afterwards. Immutable Leap
+      comes in the afternoon.
 - [ ] **Problem reports:** the "report this" path, for openSUSE and for
       YAiST. Does it collect the right logs, and is it clear where the report
       goes?
 - [ ] The assistant on its bad days: a wrong tool call, no model running,
       a slow first reply. Is the panel path always there as a fallback?
 
-**Afternoon, at least 4 hours: immutable systems.** Immutable Leap 16.0
-only. Every change waits for a reboot there, and that changes how Alex
+**Afternoon, at least 4 hours: immutable systems.** Immutable Leap 16.1
+and newer only. Every change waits for a reboot there, and that changes how Alex
 experiences every module.
 
-- [ ] **Every module once** on immutable Leap 16.0: do the plan cards show
+- [ ] **Every module once** on immutable Leap 16.1: do the plan cards show
       `transactional-update`, and does every change say "applies after a
       reboot"?
 - [ ] **Changes waiting for a reboot:** after the first change, does YAiST
@@ -210,9 +211,8 @@ experiences every module.
 *Leap 16.1 is out. Alex upgrades without fear, then gets curious about the
 people behind openSUSE.*
 
-- [ ] **Upgrade:** Leap 16.0 → 16.1 for real in a VM (standard and
-      immutable), from the banner
-      (merged in #26) to the first boot afterwards: the release notes, the
+- [ ] **Upgrade:** Leap 16.0 → 16.1 for real in a VM, from the banner (merged
+      in #26) to the first boot afterwards: the release notes, the
       snapshot before it, what to do when it fails halfway.
       Tumbleweed/Slowroll: what `dup` means and when to run it.
 - [ ] **Community, the contributor ladder:** each step one click away and
@@ -237,7 +237,7 @@ people behind openSUSE.*
 Fill in as the week goes. Verdict: **keep** / **rework** / **hide** (expert
 only) / **drop**.
 
-| Module | Day | TW | Leap | Immutable | Verdict | Notes, issues, PRs |
+| Module | Day | TW | Leap | Immutable Leap 16.1 | Verdict | Notes, issues, PRs |
 |---|---|---|---|---|---|---|
 | Welcome | Mon | | | | | |
 | System | Mon | | | | | |
