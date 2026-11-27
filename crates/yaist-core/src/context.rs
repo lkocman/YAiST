@@ -53,7 +53,7 @@ pub struct Distro {
     /// means `zypper dup`, not `zypper up`.
     pub rolling: bool,
     /// Read-only root managed by `transactional-update` (immutable Leap,
-    /// Leap Micro, MicroOS, Aeon, Kalpa).
+    /// MicroOS, Aeon, Kalpa).
     pub transactional: bool,
     /// `VARIANT_ID`, e.g. `transactional` for immutable Leap.
     pub variant_id: String,
@@ -102,7 +102,7 @@ impl Distro {
         // Immutable: said explicitly (immutable Leap, and the expected
         // immutable Tumbleweed), MicroOS-like, a known immutable flavour, or a
         // read-only root on the running system.
-        let known = ["opensuse-microos", "opensuse-aeon", "opensuse-kalpa", "opensuse-leap-micro"];
+        let known = ["opensuse-microos", "opensuse-aeon", "opensuse-kalpa"];
         let transactional = variant_id == "transactional" || is("opensuse-microos") || known.contains(&id.as_str()) || read_only_root;
         let pretty = Some(field("PRETTY_NAME")).filter(|p| !p.is_empty()).unwrap_or_else(|| field("NAME"));
         Self { pretty, version: field("VERSION_ID"), id, rolling, transactional, variant_id, end_of_life: None }

@@ -150,14 +150,8 @@ fn migrate_shell(target: &str, keep: &str, d: &Distro) -> Vec<String> {
         "slowroll" => ("https://download.opensuse.org/slowroll/repo/oss/".to_owned(), "openSUSE-repos-Slowroll", " --allow-downgrade"),
         t => {
             let v = sq(t.strip_prefix("leap:").unwrap_or("<version>"));
-            let (pkg, url) = if d.id == "opensuse-leap-micro" {
-                (
-                    "openSUSE-repos-LeapMicro",
-                    format!("https://download.opensuse.org/distribution/leap-micro/{v}/product/repo/openSUSE-Leap-Micro-{v}-$(uname -m)/"),
-                )
-            } else {
-                ("openSUSE-repos-Leap", format!("https://download.opensuse.org/distribution/leap/{v}/repo/oss"))
-            };
+            let pkg = "openSUSE-repos-Leap";
+            let url = format!("https://download.opensuse.org/distribution/leap/{v}/repo/oss");
             cmds.extend([
                 format!("{z} install --force-resolution {pkg}"),
                 format!("{z} refresh-services"),
@@ -171,13 +165,7 @@ fn migrate_shell(target: &str, keep: &str, d: &Distro) -> Vec<String> {
                 format!("{z} --releasever {v} --no-refresh dup --force-resolution --allow-vendor-change"),
                 format!(
                     "{z} --releasever {v} --no-refresh install --force-resolution {}   # the target's release package",
-                    if d.id == "opensuse-leap-micro" {
-                        "<release package>"
-                    } else if v.starts_with("15.") {
-                        "openSUSE-release"
-                    } else {
-                        "Leap-release"
-                    }
+                    if v.starts_with("15.") { "openSUSE-release" } else { "Leap-release" }
                 ),
                 "sudo reboot".into(),
             ]);
@@ -201,15 +189,10 @@ fn is_slowroll(d: &Distro) -> bool {
     d.id.contains("slowroll") || d.pretty.contains("Slowroll")
 }
 
-/// The Leap line this system follows: (get.opensuse.org key, helper flavour,
-/// display name). Immutable Leap is `opensuse-leap` too, with
-/// `VARIANT_ID=transactional`.
-fn leap_line(d: &yaist_core::Distro) -> Option<(&'static str, &'static str, &'static str)> {
-    match d.id.as_str() {
-        "opensuse-leap" => Some(("Leap", "leap", "openSUSE Leap")),
-        "opensuse-leap-micro" => Some(("LeapMicro", "leap-micro", "openSUSE Leap Micro")),
-        _ => None,
-    }
+/// The Leap line this system follows: (get.opensuse.org key, display name).
+/// Immutable Leap is `opensuse-leap` too, with `VARIANT_ID=transactional`.
+fn leap_line(d: &yaist_core::Distro) -> Option<(&'static str, &'static str)> {
+    (d.id == "opensuse-leap").then_some(("Leap", "openSUSE Leap"))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -341,7 +324,7 @@ async fn leap_releases(key: &str, current: &str) -> Result<Vec<(String, String)>
 /// (Alpha, Beta, RC); `None` once it is stable, and when unknown or offline.
 /// Pre-releases are updated with dup, as their packages may go backwards.
 pub(crate) async fn prerelease_phase(d: &Distro) -> Option<String> {
-    let (key, _, _) = leap_line(d)?;
+    let (key, _) = leap_line(d)?;
     // As long as leap_releases waits: with broken IPv6 the answer can take
     // seconds.
     let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build().ok()?;
@@ -359,7 +342,7 @@ fn phase_of(releases: &Value, key: &str, version: &str) -> Option<String> {
 /// the line it runs counts; Tumbleweed or Slowroll are not newer Leaps.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LatestRelease {
-    /// "openSUSE Leap", "openSUSE Leap Micro".
+    /// "openSUSE Leap".
     pub line: &'static str,
     pub current: String,
     /// The newest released version newer than the running one.
@@ -398,16 +381,16 @@ fn latest_of(releases: &Value, key: &str, line: &'static str, current: &str) -> 
     LatestRelease { line, current: current.to_owned(), newer, upcoming, blocked: None }
 }
 
-/// Where this Leap (or Leap Micro) stands; `None` on other distributions.
+/// Where this Leap stands; `None` on other distributions.
 pub async fn latest_release(d: &Distro) -> Option<Result<LatestRelease>> {
-    let (key, flavour, line) = leap_line(d)?;
+    let (key, line) = leap_line(d)?;
     Some(
         async {
             let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
             let v: Value =
                 client.get(RELEASES_API).send().await?.error_for_status()?.json().await.map_err(|e| anyhow!("reading {RELEASES_API}: {e}"))?;
             let mut l = latest_of(&v, key, line, &d.version);
-            l.blocked = l.newer.as_deref().and_then(|ver| cpu_blocks(flavour, ver));
+            l.blocked = l.newer.as_deref().and_then(cpu_blocks);
             Ok(l)
         }
         .await,
@@ -415,9 +398,9 @@ pub async fn latest_release(d: &Distro) -> Option<Result<LatestRelease>> {
 }
 
 /// Leap 16 needs an x86-64-v2 processor on x86_64.
-fn cpu_blocks(flavour: &str, ver: &str) -> Option<String> {
+fn cpu_blocks(ver: &str) -> Option<String> {
     let major: u32 = ver.split('.').next().and_then(|m| m.parse().ok()).unwrap_or(0);
-    (flavour == "leap" && std::env::consts::ARCH == "x86_64" && major >= 16 && !x86_64_v2()).then(|| "needs an x86-64-v2 CPU".to_owned())
+    (std::env::consts::ARCH == "x86_64" && major >= 16 && !x86_64_v2()).then(|| "needs an x86-64-v2 CPU".to_owned())
 }
 
 /// The answer to "am I on the latest release?".
@@ -521,7 +504,7 @@ async fn targets(ctx: &Context) -> Result<Output> {
         return Ok(Output::Table(t));
     }
 
-    let Some((key, flavour, line)) = leap_line(d) else {
+    let Some((key, line)) = leap_line(d) else {
         return Ok(Output::Text(format!("Upgrades from {} are not supported yet.", if d.pretty.is_empty() { &d.id } else { &d.pretty })));
     };
     match leap_releases(key, &d.version).await {
@@ -536,7 +519,7 @@ async fn targets(ctx: &Context) -> Result<Output> {
                 if !r.is_empty() {
                     notes.push(r);
                 }
-                let status = if let Some(why) = cpu_blocks(flavour, &ver) {
+                let status = if let Some(why) = cpu_blocks(&ver) {
                     notes.insert(0, why);
                     "not available".to_owned()
                 } else if state.eq_ignore_ascii_case("stable") {
@@ -563,7 +546,7 @@ async fn targets(ctx: &Context) -> Result<Output> {
             format!("{e:#}"),
         ]),
     }
-    if flavour == "leap" && !d.transactional {
+    if !d.transactional {
         let tw = if matches!(arch, "x86_64" | "aarch64") { "ready" } else { "not available" };
         t.push(vec![
             "tumbleweed".into(),
@@ -623,7 +606,7 @@ async fn migrate(ctx: &Context, target: &str, keep: &[String]) -> Result<Output>
         }
         t => {
             let version = t.strip_prefix("leap:").ok_or_else(|| anyhow!("unknown target {t}"))?;
-            let Some((key, flavour, line)) = leap_line(d) else {
+            let Some((key, line)) = leap_line(d) else {
                 bail!("upgrades from {} are not supported yet", d.id);
             };
             // The running version again finishes an upgrade that stopped
@@ -632,7 +615,7 @@ async fn migrate(ctx: &Context, target: &str, keep: &[String]) -> Result<Output>
                 bail!("{version} is not an available upgrade from {}", d.version);
             }
             let (aliases, _) = repos_to_disable(ctx, keep, version).await?;
-            let mut args = vec!["migrate-leap", flavour, version];
+            let mut args = vec!["migrate-leap", version];
             args.extend(aliases.iter().map(String::as_str));
             let out = helper::run(ctx, &args).await?;
             Ok(Output::Done(done(&format!("{line} {version}"), &aliases, &out)))
@@ -738,7 +721,6 @@ mod tests {
         assert_eq!(phase_of(&v, "Leap", "16.1").as_deref(), Some("RC"));
         assert_eq!(phase_of(&v, "Leap", "16.0"), None);
         assert_eq!(phase_of(&v, "Leap", "16.2"), None);
-        assert_eq!(phase_of(&v, "LeapMicro", "6.2"), None);
     }
 
     #[test]

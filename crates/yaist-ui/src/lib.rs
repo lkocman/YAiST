@@ -195,11 +195,10 @@ pub fn verdict(plan: &Plan) -> Option<&str> {
 }
 
 /// The distribution's short name for "Report a … bug": Leap, Tumbleweed,
-/// Slowroll, MicroOS, Aeon, Kalpa, Leap Micro.
+/// Slowroll, MicroOS, Aeon, Kalpa.
 pub fn distro_short(d: &yaist_core::Distro) -> &'static str {
     match d.id.as_str() {
         "opensuse-leap" => "Leap",
-        "opensuse-leap-micro" => "Leap Micro",
         "opensuse-microos" => "MicroOS",
         "opensuse-aeon" => "Aeon",
         "opensuse-kalpa" => "Kalpa",

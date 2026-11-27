@@ -87,7 +87,6 @@ fn every_action_teaches_its_terminal_command() {
             variant_id: "transactional".into(),
             ..Default::default()
         },
-        yaist_core::Distro { id: "opensuse-leap-micro".into(), version: "6.2".into(), transactional: true, ..Default::default() },
     ];
     for spec in reg.specs() {
         // Time zones are checked against /usr/share/zoneinfo, which a build

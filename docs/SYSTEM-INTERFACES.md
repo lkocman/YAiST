@@ -250,7 +250,7 @@ itself**, since whoever starts it is not trusted:
 ```
 snapper-list | snapper-create <description> | snapper-status <n>
 snapper-delete <n> | snapper-rollback <n>
-migrate-leap leap|leap-micro <version> [repo-alias-to-disable …]
+migrate-leap <version> [repo-alias-to-disable …]
 migrate-rolling tumbleweed|slowroll [repo-alias-to-disable …]
 migrate-sle <email> <regcode-file> [repo-alias-to-disable …]
 nvidia-setup leap|tumbleweed

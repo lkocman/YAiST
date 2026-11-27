@@ -15,7 +15,7 @@ In this chapter you will learn:
 
 .Before you start
 * openSUSE Tumbleweed, Slowroll, Leap 16 or one of their immutable
-  variants such as Aeon or Leap Micro. YAiST adapts its commands to each.
+  variants such as immutable Leap. YAiST adapts its commands to each.
 * An account that may become administrator. YAiST asks for the
   administrator password only when an operation needs it.
 
