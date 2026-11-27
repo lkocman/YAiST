@@ -61,6 +61,8 @@ before/after screenshots, a branch and a pull request.
 - [ ] Do a cold run as Alex: install, log in, open YAiST, and give yourself
       30 minutes to "get set up". Note every place you got stuck. This is the
       baseline for Friday.
+- [ ] Start the ready-to-boot image (see the track below): the first
+      KIWI description on OBS, so that builds have run by Monday.
 - [ ] Merge #28 (drop Services). Look at #22 (table columns truncating),
       since every module's table runs into it.
 - [ ] Optional: write 20–30 newbie questions in Alex's words (e.g. "my
@@ -151,11 +153,55 @@ people behind openSUSE.*
       5. come to an event or a Hackweek.
       Should YAiST offer step 1 once, around month three ("you've been using
       openSUSE for 90 days")?
+- [ ] **Image:** publish the ready-to-boot image with its virt-manager
+      instructions, and boot it once on a machine that hasn't seen YAiST.
 - [ ] Redo the weekend's cold run. Compare with the baseline: time to set
       up, number of places stuck.
 - [ ] Wrap-up: regenerate the screenshots (`scripts/screenshots.sh`), update
       the Hackweek project page with a short demo, and record what's left in
       issues.
+
+### All week: a ready-to-boot image
+
+*Someone curious about YAiST downloads one file, imports it into
+virt-manager and boots straight into YAiST, assistant included, without
+installing anything on their own machine.*
+
+- [ ] **Build it with KIWI on OBS**, in `home:lkocman:YAiST` next to the
+      `yaist` and `yaist-offline` packages, so that it rebuilds when they
+      change. Start from one flavour (Tumbleweed or Leap 16.0, with one
+      desktop) and add more later. The output is a qcow2 file; a raw image
+      for a USB stick can come later.
+- [ ] **Boot right into it:** log a demo user in automatically and open
+      YAiST on the welcome screen. Preinstall the model (`yaist-offline`,
+      about 2.5 GB), so that the assistant works without downloading
+      anything.
+- [ ] **The assistant in a VM:** what runs where.
+      - *CPU mode*, the default that works everywhere. It needs the
+        `host-passthrough` CPU model (for AVX2), 4 or more vCPUs and 8 GB
+        of RAM. It's slow but it works, and it shows the "SLOWER" label.
+      - *GPU passthrough* (VFIO) for hosts with a spare GPU and IOMMU
+        turned on. This is the real speed. Document it as advanced.
+      - *virtio-gpu with Venus* (Vulkan in the guest). It's experimental:
+        try whether llama.cpp's Vulkan backend runs on it. If it does, it's
+        GPU speed without passthrough.
+- [ ] **Use it as this week's test machine:** a fresh image every morning is
+      the clean first boot that the checklist needs.
+- [ ] **Instructions for virt-manager:** a page in `docs/`, linked from the
+      README.
+      1. Download the image and check its checksum.
+      2. *New VM → Import existing disk image*, OS openSUSE.
+      3. Memory 8 GB, 4 or more CPUs, then *Customize configuration before
+         install*.
+      4. Firmware UEFI, CPU model `host-passthrough`, Video Virtio
+         (3D acceleration only when trying Venus), Display Spice.
+      5. Optional: *Add Hardware → PCI Host Device* for a passed-through GPU,
+         with the IOMMU and vfio-pci steps it needs, linked rather than
+         copied.
+      6. The same thing with `virt-install`, for people who prefer a
+         single command.
+- [ ] Decide: what the image says on first boot. It's a demo, so it should
+      say what YAiST is and that changes only happen inside the VM.
 
 ## Scorecard
 
@@ -178,6 +224,7 @@ only) / **drop**.
 | Problem reports | Thu | | | | | |
 | Upgrade | Fri | | | | | |
 | Community | Fri | | | | | |
+| Ready-to-boot image | all week | | | | | |
 | ~~Services~~ | | | | | drop | #28 |
 
 ## Not this week
